@@ -8,7 +8,7 @@ var ryver = require('..');
 var program = require('commander');
 var chalk = require('chalk');
 
-var exists = require('fs').existsSync;
+var fs = require('fs');
 var resolve = require('path').resolve;
 
 /**
@@ -17,9 +17,8 @@ var resolve = require('path').resolve;
 
 program
   .version(require('../package.json').version)
-  .option('[source]', 'source directory', '.');
-  .option('[destination]', 'destination directory', '[source]/_site');
-
+  .usage("[options] [source] [destination]")
+  .option('-p, --plugins [plugins]', 'Add plugins');
 /**
  * Examples.
  */
@@ -44,35 +43,23 @@ program.on('--help', function(){
 
 program.parse(process.argv);
 
-/**
- * Config.
- */
+var cwd = process.cwd();
+var source = program.args[ 0 ] || '.';
+var dest = program.args[ 1 ] || './_site';
 
-var dir = process.cwd();
-var config = program.config;
-var path = resolve(dir, config);
-if (!exists(path)) fatal('could not find a ' + config + ' configuration file.');
+pathIsExistingDir( source );
+pathIsExistingDir( dest );
 
-try {
-  var json = require(path);
-} catch (e) {
-  fatal('it seems like ' + config + ' is malformed.');
+if( program.plugins != '' ){
+  var pluginsArray = program.plugins.split( '.' );
+
+
+
+  console.log( pluginsArray );
 }
 
-/**
- * Metalsmith.
- */
 
-var metalsmith = new Metalsmith(dir);
-if (json.source) metalsmith.source(json.source);
-if (json.destination) metalsmith.destination(json.destination);
-if (json.concurrency) metalsmith.concurrency(json.concurrency);
-if (json.metadata) metalsmith.metadata(json.metadata);
-if (json.clean != null) metalsmith.clean(json.clean);
-
-/**
- * Plugins.
- */
+/*
 
 normalize(json.plugins).forEach(function(plugin){
   for (var name in plugin) {
@@ -101,26 +88,33 @@ normalize(json.plugins).forEach(function(plugin){
     }
   }
 });
+*/
 
-/**
- * Build.
- */
 
-metalsmith.build(function(err){
-  if (err) return fatal(err.message, err.stack);
-  log('successfully built to ' + metalsmith.destination());
-});
+ryver.collectFilters( function( err ){
+  if( err ) return fatal( err.message, err.stack );
 
-/**
- * Log an error and then exit the process.
- *
- * @param {String} msg
- * @param {String} [stack]  Optional stack trace to print.
- */
+  // Let the fun begin!
+  ryver.build( source, dest, {}, function( err ){
+    if( err ) return fatal( err.message, err.stack );
+
+    process.exit();
+  });
+})
+
+function pathIsExistingDir( path ){
+  try {
+    return fs.lstatSync( path ).isDirectory();
+  } catch ( e ){
+    fatal( e );
+  }
+}
+
 
 function fatal(msg, stack){
+  console.log("I AM HERE! ", stack, "EH" );
   console.error();
-  console.error(chalk.red('  Metalsmith') + chalk.gray(' · ') + msg);
+  console.error(chalk.red('  Ryver') + chalk.gray(' · ') + msg);
   if (stack) {
     console.error();
     console.error(chalk.gray(stack));
@@ -129,34 +123,9 @@ function fatal(msg, stack){
   process.exit(1);
 }
 
-/**
- * Log a `message`.
- *
- * @param {String} message
- */
 
 function log(message){
   console.log();
-  console.log(chalk.gray('  Metalsmith · ') + message);
+  console.log(chalk.gray('  Ryver · ') + message);
   console.log();
-}
-
-/**
- * Normalize an `obj` of plugins.
- *
- * @param {Array or Object} obj
- * @return {Array}
- */
-
-function normalize(obj){
-  if (obj instanceof Array) return obj;
-  var ret = [];
-
-  for (var key in obj) {
-    var plugin = {};
-    plugin[key] = obj[key];
-    ret.push(plugin);
-  }
-
-  return ret;
 }

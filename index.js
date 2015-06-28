@@ -4,18 +4,13 @@ var asyncReplace = require( 'async-replace');
 var fs = require('fs')
 var p = require('path')
 var EventEmitterCollector = require("eventemittercollector");
-var EventEmitter = require('events').EventEmitter;
 var mmm = require('mmmagic');
 var DO = require('deepobject');
-
-
-var files, info, fileStat, fileNameWithPath;
 
 var eventEC = new EventEmitterCollector;
 var Magic = mmm.Magic;
 var magic = new Magic( mmm.MAGIC_MIME_TYPE );
 var yaml = require('js-yaml');
-
 
 /* TODO:
   * [X] Write function that goes through every file
@@ -53,8 +48,9 @@ var yaml = require('js-yaml');
   * [X] Check scope of info, make sure it's cloned in the right spots
 
   TOMORROW:
-  * [ ] Turn it into a command-line tool and actually allow input/output dirs, respect them
+  * [X] Turn it into a command-line tool and actually allow input/output dirs, respect them
   * [ ] Create plugins file structure, include core ones, allow non-core ones
+  * [ ] Write fancy and nice logs when things happen, allow it to be verbose
 
   MONDAY:
   * [ ] Add afterFilter hook to copy files over respecting new info
@@ -73,6 +69,8 @@ var yaml = require('js-yaml');
 
 var processing = {
   filters: {},
+  src: null,
+  dst: null,
 };
 
 // Private module methods
@@ -104,7 +102,6 @@ var filter = exports.filter = function( filterList, fileData, cb){
   var list = [];
   var functions = [];
 
-
   var fileContents = fileData.contents;
   // Starting point is always considered to be an array
   if( ! Array.isArray( filterList ) ) filterList = [ filterList ];
@@ -130,7 +127,6 @@ var filter = exports.filter = function( filterList, fileData, cb){
     // Sanity checks: filter must exist, and must not repeat
     if( ! processing.filters[ filterName ] )
       return cb( new Error("Filter " + filterName + " invalid!") );
-
 
     // All good: add it, and mark it as already used
     functions.push( function( fileData, cb ){
@@ -226,12 +222,16 @@ var collectFilters = exports.collectFilters = function( cb ){
 }
 
 
-var build = exports.build = function( filePath, passedInfo, cb ){
+var build = exports.build = function( filePath, dst, passedInfo, cb ){
 
   // There is one "passedInfo" per directory transfersed,
   // and several files to be filtered in each directory.
 
   var info;
+
+  // The first time it's run, it will set the source and the destination
+  processing.src = processing.src || filePath;
+  processing.dst = processing.dst || filePath;
 
   fs.readdir( filePath, function( err, fileNames ){
     if( err ) return cb( err );
@@ -275,7 +275,7 @@ var build = exports.build = function( filePath, passedInfo, cb ){
             if( fileStat.isDirectory() ){
 
               console.log("DIR!", fileNameWithPath );
-              return build( fileNameWithPath, info, cb );
+              return build( fileNameWithPath, dst, info, cb );
             };
 
             fs.readFile( fileNameWithPath, function( err, fileContentsAsBuffer ){
@@ -294,6 +294,8 @@ var build = exports.build = function( filePath, passedInfo, cb ){
                     fileExt: fileName.split('.').pop().toLowerCase(),
                     mimetype: magic,
                     processedBy: [],
+                    src: processing.src,
+                    dst: processing.dst,
                   },
                   info: cloneObject( info ),
                   contents: fileContentsAsBuffer.toString(),
@@ -434,7 +436,9 @@ eventEC.onCollect( 'filter', function( cb ){
     var layout = fileData.info.layout || ( fileData.frontMatter && fileData.frontMatter.layout );
     if( !layout ) return cb( null, fileData );
 
-    fs.readFile( p.join( './test', '_layout', layout ), function( err, templatefileContentsAsBuffer ){
+
+    console.log("Filedata:", fileData );
+    fs.readFile( p.join( fileData.system.src, '_layout', layout ), function( err, templatefileContentsAsBuffer ){
       if( err ) return cb( err );
 
       var templatefileContents = templatefileContentsAsBuffer.toString();
@@ -483,22 +487,3 @@ eventEC.onCollect( 'filter', function( cb ){
   // Return the function just defined as the filter
   cb( null, { name: 'liquid', executor: f } );
 });
-
-
-
-collectFilters( function( err ){
-  if( err ){
-    console.log("ERROR! ", err, err.stack );
-    process.exit();
-  }
-
-  // Let the fun begin!
-  build( 'test', {}, function( err ){
-    if( err ){
-      console.log("ERROR! ", err, err.stack );
-      process.exit();
-    }
-
-    console.log("ALL FINISED!");
-  });
-})
