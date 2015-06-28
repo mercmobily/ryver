@@ -6,6 +6,8 @@ var p = require('path')
 var EventEmitterCollector = require("eventemittercollector");
 var EventEmitter = require('events').EventEmitter;
 var mmm = require('mmmagic');
+var DO = require('deepobject');
+
 
 var files, info, fileStat, fileNameWithPath;
 
@@ -45,8 +47,10 @@ var yaml = require('js-yaml');
   * [X] Add defaultPreFilters and defaultPostFilters to info
   * [X] Tidy up code as singleton object
   * [X] Change it so that there is only ONE parameter passed to each function
-  * [ ] Add pre-processing and post-processing, move frontMatter to pre-processing, making
+  * [X] Add pre-processing and post-processing, move frontMatter to pre-processing, making
         flters configurable per-file
+  * [X] Write enrichObject function that recursively enrich an object, use it in both cases (clone, enrich)
+  * [X] Check scope of info, make sure it's cloned in the right spots
 
   TOMORROW:
   * [ ] Turn it into a command-line tool and actually allow input/output dirs, respect them
@@ -100,8 +104,8 @@ var filter = exports.filter = function( filterList, fileData, cb){
   var list = [];
   var functions = [];
 
-  var fileContents = fileData.contents;
 
+  var fileContents = fileData.contents;
   // Starting point is always considered to be an array
   if( ! Array.isArray( filterList ) ) filterList = [ filterList ];
 
@@ -137,8 +141,8 @@ var filter = exports.filter = function( filterList, fileData, cb){
         //console.log("FILTER " + filterName + " ALREADY APPLIED!");
         return cb( null, fileData );
       }
-      fileData.system.processedBy.push( filterName );
       processing.filters[ filterName ].call( this, fileData, cb );
+      fileData.system.processedBy.push( filterName );
     });
 
   });
@@ -154,16 +158,49 @@ var filter = exports.filter = function( filterList, fileData, cb){
   });
 }
 
-function _oo( o, c ){
-  var newOne = {};
-  for( var k in o ) if( o.hasOwnProperty( k ) ) newOne[ k ] = o[ k ];
-  for( var k in c ) if( c.hasOwnProperty( k ) ) newOne[ k ] = c[ k ];
-  return newOne;
-};
-
 
 // Public module methods
 
+// http://stackoverflow.com/a/728694/829771
+var cloneObject = exports.cloneObject = function( obj ) {
+    // Handle the 3 simple types, and null or undefined
+    if (null == obj || "object" != typeof obj) return obj;
+
+    // Handle Date
+    if (obj instanceof Date) {
+        var copy = new Date();
+        copy.setTime(obj.getTime());
+        return copy;
+    }
+
+    // Handle Array
+    if (obj instanceof Array) {
+        var copy = [];
+        for (var i = 0, len = obj.length; i < len; i++) {
+            copy[i] = cloneObject(obj[i]);
+        }
+        return copy;
+    }
+
+    // Handle Object
+    if (obj instanceof Object) {
+        var copy = {};
+        for (var attr in obj) {
+            if (obj.hasOwnProperty(attr)) copy[attr] = cloneObject(obj[attr]);
+        }
+        return copy;
+    }
+
+    throw new Error("Unable to copy obj! Its type isn't supported.");
+}
+
+
+var enrichObject = exports.enrichObject = function( b, o ){
+  var deepObj = new DO( b );
+  for( var k in o ){
+    deepObj.set( k, o[ k ] );
+  }
+}
 
 var changeFileExt = exports.changeFileExt = function( system, ext ){
 
@@ -175,7 +212,6 @@ var changeFileExt = exports.changeFileExt = function( system, ext ){
   system.fileExt = ext.toLowerCase();
   system.fileName = system.fileName.substr( 0, system.fileName.lastIndexOf(".")) + "." + ext;
 }
-
 
 var collectFilters = exports.collectFilters = function( cb ){
 
@@ -192,26 +228,33 @@ var collectFilters = exports.collectFilters = function( cb ){
 
 var build = exports.build = function( filePath, passedInfo, cb ){
 
+  // There is one "passedInfo" per directory transfersed,
+  // and several files to be filtered in each directory.
+
+  var info;
+
   fs.readdir( filePath, function( err, fileNames ){
     if( err ) return cb( err );
 
     console.log( "FILES:", fileNames );
 
+    // There is a _info.yaml in the local directory! It will load it, and
+    // make an info object based on passedInfo enriched with localInfo
     if( fileNames.indexOf( '_info.yaml' ) !== -1 ){
 
       fs.readFile( p.join( filePath, '_info.yaml' ), function( err, loadedInfo ){
         if( err ) return cb( err );
         try {
           var localInfo = yaml.safeLoad( loadedInfo, { filename: p.join( filePath, 'info.yaml' ) } );
-          info = _oo( passedInfo, localInfo );
-
+          info = cloneObject( passedInfo );
+          enrichObject( info, localInfo );
         } catch ( e ){
           return cb( e );
         }
         restOfFunction();
       });
     } else {
-      info = _oo( info, {} );
+      info = passedInfo;
       restOfFunction();
     }
 
@@ -252,26 +295,31 @@ var build = exports.build = function( filePath, passedInfo, cb ){
                     mimetype: magic,
                     processedBy: [],
                   },
-                  info: info,
+                  info: cloneObject( info ),
                   contents: fileContentsAsBuffer.toString(),
                   initialContents: fileContentsAsBuffer
                 };
 
+                var preProcessFilters = info.preProcessFilters || '';
 
-
-                // Set filters variables
-                var defaultPreFilters = info.defaultPreFilters || '';
-                var filters = info.filters || '';
-                var defaultPostFilters = info.defaultPostFilters || '';
-
-                console.log("FILTERS IS", filters );
-
-                filter( [ defaultPreFilters, filters, defaultPostFilters ], fileData, function( err, fileData) {
+                filter( preProcessFilters, fileData, function( err, fileData) {
                   if( err ) return cb( err );
 
-                  console.log("RESULT: ", trimFileData( fileData ) );
+                  console.log("RESULT AFTER PREPROCESSFILTERS: ", trimFileData( fileData ) );
 
-                  cb( null );
+                  var defaultPreFilters = fileData.info.defaultPreFilters || '';
+                  var filters = fileData.info.filters || '';
+                  var defaultPostFilters = fileData.info.defaultPostFilters || '';
+
+                  console.log("FILTERS ARE", filters );
+
+                  filter( [ defaultPreFilters, filters, defaultPostFilters ], fileData, function( err, fileData) {
+                    if( err ) return cb( err );
+
+                    console.log("RESULT: ", trimFileData( fileData ) );
+
+                    cb( null );
+                  });
                 });
               })
             })
@@ -298,11 +346,6 @@ var build = exports.build = function( filePath, passedInfo, cb ){
 }
 
 
-
-
-
-
-
 /* TO BE MOVED INTO PLUGINS */
 // Front matter
 // Read file's front matter as yaml, store it in fileData object
@@ -320,8 +363,7 @@ eventEC.onCollect( 'filter', function( cb ){
 
         frontMatter = yaml.safeLoad( p1, { filename: fileData.system.fileNameWithPath } );
 
-        // Assign the parsed frontMatter to fileData
-        fileData.frontMatter = frontMatter;
+        enrichObject( fileData.info, frontMatter );
 
         // This will ensure that frontMatter will disappear, as it should
         return '';
@@ -441,8 +483,6 @@ eventEC.onCollect( 'filter', function( cb ){
   // Return the function just defined as the filter
   cb( null, { name: 'liquid', executor: f } );
 });
-
-
 
 
 
