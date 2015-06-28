@@ -53,10 +53,13 @@ pathIsExistingDir( dest );
 if( program.plugins != '' ){
   var pluginsArray = program.plugins.split( '.' );
 
-
-
   console.log( pluginsArray );
 }
+
+require('ryver-frontmatter');
+require('ryver-layout');
+require('ryver-markup-markdown');
+require('ryver-template-liquid');
 
 
 /*
@@ -112,7 +115,6 @@ function pathIsExistingDir( path ){
 
 
 function fatal(msg, stack){
-  console.log("I AM HERE! ", stack, "EH" );
   console.error();
   console.error(chalk.red('  Ryver') + chalk.gray(' · ') + msg);
   if (stack) {

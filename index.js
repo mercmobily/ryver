@@ -1,16 +1,14 @@
 
 var async = require('async');
-var asyncReplace = require( 'async-replace');
 var fs = require('fs')
 var p = require('path')
 var EventEmitterCollector = require("eventemittercollector");
 var mmm = require('mmmagic');
 var DO = require('deepobject');
+var yaml = require('js-yaml');
 
-var eventEC = new EventEmitterCollector;
 var Magic = mmm.Magic;
 var magic = new Magic( mmm.MAGIC_MIME_TYPE );
-var yaml = require('js-yaml');
 
 /* TODO:
   * [X] Write function that goes through every file
@@ -75,34 +73,13 @@ var processing = {
 
 // Private module methods
 
-var trimFileData = function( fileData ){
-  var newFileData = {};
-
-  for( var k in fileData ){
-
-    // Needs to be own property
-    if( ! fileData.hasOwnProperty( k ) ) continue;
-
-    // No initial contents copied over
-    if( k === 'initialContents') continue;
-
-
-    newFileData[ k ] = fileData[ k ];
-  }
-
-  if( fileData.system.mimetype.split('/')[0] !== 'text'){
-    newFileData.contents = "NON TEXT";
-  }
-
-  return newFileData;
-}
-
 var filter = exports.filter = function( filterList, fileData, cb){
 
   var list = [];
   var functions = [];
 
   var fileContents = fileData.contents;
+
   // Starting point is always considered to be an array
   if( ! Array.isArray( filterList ) ) filterList = [ filterList ];
 
@@ -154,8 +131,33 @@ var filter = exports.filter = function( filterList, fileData, cb){
   });
 }
 
+// Public module variables
+var eventEC = exports.eventEC = new EventEmitterCollector;
 
 // Public module methods
+
+var trimFileData = exports.trimFileData = function( fileData ){
+  var newFileData = {};
+
+  for( var k in fileData ){
+
+    // Needs to be own property
+    if( ! fileData.hasOwnProperty( k ) ) continue;
+
+    // No initial contents copied over
+    if( k === 'initialContents') continue;
+
+
+    newFileData[ k ] = fileData[ k ];
+  }
+
+  if( fileData.system.mimetype.split('/')[0] !== 'text'){
+    newFileData.contents = "NON TEXT";
+  }
+
+  return newFileData;
+}
+
 
 // http://stackoverflow.com/a/728694/829771
 var cloneObject = exports.cloneObject = function( obj ) {
@@ -178,8 +180,8 @@ var cloneObject = exports.cloneObject = function( obj ) {
         return copy;
     }
 
-    // Handle Object
     if (obj instanceof Object) {
+    // Handle Object
         var copy = {};
         for (var attr in obj) {
             if (obj.hasOwnProperty(attr)) copy[attr] = cloneObject(obj[attr]);
@@ -346,144 +348,3 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
     }
   })
 }
-
-
-/* TO BE MOVED INTO PLUGINS */
-// Front matter
-// Read file's front matter as yaml, store it in fileData object
-eventEC.onCollect( 'filter', function( cb ){
-
-  var f = function( fileData, cb ){
-
-    // This filter will only work on text files (of any kind)
-    if( fileData.system.mimetype.split('/')[0] !== 'text') return cb( null, fileData);
-
-    // Wrapping both replace() and yaml.safeLoad in try/catch so that
-    // if anything goes wrong the callback gets called correctly
-    try {
-      fileData.contents = fileData.contents.replace(/^---\n([\s\S]*)\n---\n/m, function( match, p1, offset, string) {
-
-        frontMatter = yaml.safeLoad( p1, { filename: fileData.system.fileNameWithPath } );
-
-        enrichObject( fileData.info, frontMatter );
-
-        // This will ensure that frontMatter will disappear, as it should
-        return '';
-        ;
-      });
-
-    } catch ( e ) {
-      return cb( e );
-    }
-
-    // All done. At this point, fileContents might have the front matter missing and fileData
-    // might have the frontMatter attribute added to it
-    cb( null, fileData );
-  }
-
-  // Return the function just defined as the filter
-  cb( null, { name: 'frontMatter', executor: f } );
-});
-
-
-// Apply markup
-eventEC.onCollect( 'filter', function( cb ){
-
-  var f = function( fileData, cb ){
-
-    console.log("fileData", trimFileData( fileData ) );
-
-    // This filter will only work on text files (of any kind)
-    if( fileData.system.mimetype.split('/')[0] !== 'text') return cb( null, fileData);
-
-    if( fileData.system.fileExt !== 'md' && fileData.system.fileExt !== 'markdown') return cb( null, fileData )
-
-    var marked = require('marked');
-    marked.setOptions({
-      renderer: new marked.Renderer(),
-      gfm: true,
-      tables: true,
-      breaks: false,
-      pedantic: false,
-      sanitize: true,
-      smartLists: true,
-      smartypants: true
-    });
-
-    fileData.contents = marked( fileData.contents, fileData );
-
-    changeFileExt( fileData.system, 'html' );
-    fileData.system.mimetype = 'text/html';
-
-    // All done.
-    cb( null, fileData );
-  }
-
-  // Return the function just defined as the filter
-  cb( null, { name: 'markdown', executor: f } );
-});
-
-
-// Apply layout
-eventEC.onCollect( 'filter', function( cb ){
-
-  var f = function( fileData, cb ){
-
-    // This filter will only work on text files (of any kind)
-    if( fileData.system.mimetype.split('/')[0] !== 'text') return cb( null, fileData);
-
-    // Sets the layout. If it's not defined, quit it
-    var layout = fileData.info.layout || ( fileData.frontMatter && fileData.frontMatter.layout );
-    if( !layout ) return cb( null, fileData );
-
-
-    console.log("Filedata:", fileData );
-    fs.readFile( p.join( fileData.system.src, '_layout', layout ), function( err, templatefileContentsAsBuffer ){
-      if( err ) return cb( err );
-
-      var templatefileContents = templatefileContentsAsBuffer.toString();
-
-      var templatefileContentsParts = templatefileContents.split('<!--contents-->' );
-      if( templatefileContentsParts.length  != 2 ) return cb( new Error("Tag <!--contents--> not found in template") );
-
-      fileData.contents = templatefileContentsParts[ 0 ] + fileData.contents + templatefileContentsParts[ 1 ];
-
-      // All done.
-      cb( null, fileData );
-    });
-  }
-
-  // Return the function just defined as the filter
-  cb( null, { name: 'layout', executor: f } );
-});
-
-
-// Apply template
-eventEC.onCollect( 'filter', function( cb ){
-
-  var f = function( fileData, cb ){
-
-    console.log("fileData", trimFileData( fileData ) );
-
-    // This filter will only work on text files (of any kind)
-    if( fileData.system.mimetype.split('/')[0] !== 'text') return cb( null, fileData);
-
-    var liquid = require('tinyliquid');
-    var render = liquid.compile( fileData.contents );
-
-    var context = liquid.newContext ({
-      locals : fileData
-    });
-
-    render( context, function( err ){
-      if( err ) return cb( err );
-
-      fileData.contents = context.getBuffer();
-
-      cb( null, fileData );
-    });
-  }
-
-  // Return the function just defined as the filter
-  cb( null, { name: 'liquid', executor: f } );
-});
