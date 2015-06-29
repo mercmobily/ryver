@@ -6,6 +6,7 @@ var EventEmitterCollector = require("eventemittercollector");
 var mmm = require('mmmagic');
 var DO = require('deepobject');
 var yaml = require('js-yaml');
+var chalk = require('chalk');
 
 var Magic = mmm.Magic;
 var magic = new Magic( mmm.MAGIC_MIME_TYPE );
@@ -36,7 +37,6 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
 
   * [X] Rationalise variable and attribute names, structure of info
 
-  TODAY:
   * [X] Add defaultPreFilters and defaultPostFilters to info
   * [X] Tidy up code as singleton object
   * [X] Change it so that there is only ONE parameter passed to each function
@@ -44,22 +44,22 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
         flters configurable per-file
   * [X] Write enrichObject function that recursively enrich an object, use it in both cases (clone, enrich)
   * [X] Check scope of info, make sure it's cloned in the right spots
-
-  TOMORROW:
   * [X] Turn it into a command-line tool and actually allow input/output dirs, respect them
-  * [ ] Create plugins file structure, include core ones, allow non-core ones
-  * [ ] Write fancy and nice logs when things happen, allow it to be verbose
-
-  MONDAY:
-  * [ ] Add afterFilter hook to copy files over respecting new info
-  * [ ] Publish to GitHub with basic documentation
+  * [X] Create plugins file structure, include core ones, allow non-core ones
+  * [X] Add command line/config to add non-core plugin
+  * [X] Write fancy and nice logs when things happen, allow it to be verbose
 
   TUESDAY:
-  * [ ] Write plugin to make tag lists, category list, maybe generic attribute
+  * [ ] Add filter to copy files over to destination directory respecting name/ext
+  * [ ] At least make a simple basic web site using it
 
   WEDNESDAY:
+  * [ ] Write plugin to make tag lists, category list, maybe generic attribute
   * [ ] Write plugin that will page output safely, decide how to page tags
 
+  THURSDAY:
+  * [ ] Re-enable specific tags that allow include/filtering
+  * [ ] Publish to GitHub with basic documentation
 
 */
 
@@ -69,6 +69,7 @@ var processing = {
   filters: {},
   src: null,
   dst: null,
+  verbose: 0,
 };
 
 // Private module methods
@@ -108,10 +109,13 @@ var filter = exports.filter = function( filterList, fileData, cb){
     // All good: add it, and mark it as already used
     functions.push( function( fileData, cb ){
 
+      log( "Applying filter", filterName );
+
       // Check that the filter hasn't already been applied
       if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
 
-        //console.log("FILTER " + filterName + " ALREADY APPLIED!");
+        vlog( "fileData after filtering is:", trimFileData( fileData ) );
+
         return cb( null, fileData );
       }
       processing.filters[ filterName ].call( this, fileData, cb );
@@ -135,6 +139,22 @@ var filter = exports.filter = function( filterList, fileData, cb){
 var eventEC = exports.eventEC = new EventEmitterCollector;
 
 // Public module methods
+
+var setVerbose = exports.setVerbose = function( verbose ){
+  processing.verbose = verbose;
+}
+
+var log = exports.log = function( ){
+  if( processing.verbose == 1 || processing.verbose == 2 ){
+    console.log.apply( this, arguments );
+  }
+}
+
+var vlog = exports.log = function( ){
+  if( processing.verbose == 2 ){
+    console.log.apply( this, arguments );
+  }
+}
 
 var trimFileData = exports.trimFileData = function( fileData ){
   var newFileData = {};
@@ -213,10 +233,12 @@ var changeFileExt = exports.changeFileExt = function( system, ext ){
 
 var collectFilters = exports.collectFilters = function( cb ){
 
+  log( "Collecting filters")
   eventEC.emitCollect( 'filter', function( err, filters ){
     if( err ) return cb( err );
 
     filters.onlyResults().forEach( function( filter ) {
+      log( "Filter found and made available:", filter.name );
       processing.filters[ filter.name ] = filter.executor;
     });
     cb( null );
@@ -238,11 +260,14 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
   fs.readdir( filePath, function( err, fileNames ){
     if( err ) return cb( err );
 
-    console.log( "FILES:", fileNames );
+    log( "Will process the following files:", fileNames );
+    vlog( "Info (including inherited values) is:", passedInfo );
 
     // There is a _info.yaml in the local directory! It will load it, and
     // make an info object based on passedInfo enriched with localInfo
     if( fileNames.indexOf( '_info.yaml' ) !== -1 ){
+
+      log( "File _info.yaml found, reading it and enriching Info with it");
 
       fs.readFile( p.join( filePath, '_info.yaml' ), function( err, loadedInfo ){
         if( err ) return cb( err );
@@ -250,23 +275,30 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
           var localInfo = yaml.safeLoad( loadedInfo, { filename: p.join( filePath, 'info.yaml' ) } );
           info = cloneObject( passedInfo );
           enrichObject( info, localInfo );
+          vlog( "Info after enriching with local _info.yaml is:", info );
         } catch ( e ){
           return cb( e );
         }
         restOfFunction();
       });
     } else {
+      log( "File _info.yaml not found, will use unchanged, inherited values" );
       info = passedInfo;
       restOfFunction();
     }
 
     function restOfFunction(){
 
+      log( "Going through all files in the directory" );
       async.eachSeries(
         fileNames,
         function( fileName, cb ){
 
-          if( fileName[ 0 ] === '_' ) return cb( null );
+          log( "Processing ", fileName );
+          if( fileName[ 0 ] === '_' ){
+            log( "File starts with underscore, ignoring altogether" );
+            return cb( null );
+          }
 
           var fileNameWithPath = p.join( filePath, fileName );
 
@@ -276,14 +308,18 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
             // It's a directory: rerun the whole thing in that directory
             if( fileStat.isDirectory() ){
 
-              console.log("DIR!", fileNameWithPath );
+              log( "File is a directory. Entering it, and processing files in there" );
               return build( fileNameWithPath, dst, info, cb );
             };
+
+            log( "It is a file. Reading its contents" );
 
             fs.readFile( fileNameWithPath, function( err, fileContentsAsBuffer ){
               if( err ) return cb( err );
 
               magic.detect( fileContentsAsBuffer, function( err, magic ){
+
+                log( "The file's mime type is ", magic );
 
                 // Sets the basic file info
                 var fileData = {
@@ -304,23 +340,38 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
                   initialContents: fileContentsAsBuffer
                 };
 
+                log( "Basic fileData created" );
+                vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
+
                 var preProcessFilters = info.preProcessFilters || '';
+
+                if( preProcessFilters != '' )
+                  log( "About to apply pre-process filters: ",preProcessFilters );
+                else
+                  log( "No pre-process filters to apply" );
 
                 filter( preProcessFilters, fileData, function( err, fileData) {
                   if( err ) return cb( err );
 
-                  console.log("RESULT AFTER PREPROCESSFILTERS: ", trimFileData( fileData ) );
+                  if( preProcessFilters != '' )
+                    vlog( "After pre-process filters, contents are: ", trimFileData( fileData ) );
 
                   var defaultPreFilters = fileData.info.defaultPreFilters || '';
                   var filters = fileData.info.filters || '';
                   var defaultPostFilters = fileData.info.defaultPostFilters || '';
 
-                  console.log("FILTERS ARE", filters );
+                  log( "About to apply pre-filters, filters and post-filters" );
+                  if( defaultPreFilters != '' ) log( "Pre-filters: ", defaultPreFilters );
+                  else log( "No pre-filters" );
+                  if( filters != '' ) log( "Filters: ", filters );
+                  else log( "No filters" );
+                  if( defaultPostFilters != '' ) log( "Post-filters: ", defaultPostFilters );
+                  else log( "No post-filters" );
 
                   filter( [ defaultPreFilters, filters, defaultPostFilters ], fileData, function( err, fileData) {
                     if( err ) return cb( err );
 
-                    console.log("RESULT: ", trimFileData( fileData ) );
+                    vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
 
                     cb( null );
                   });

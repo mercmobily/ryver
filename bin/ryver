@@ -7,103 +7,14 @@
 var ryver = require('..');
 var program = require('commander');
 var chalk = require('chalk');
+var yaml = require('js-yaml');
 
 var fs = require('fs');
-var resolve = require('path').resolve;
+var p = require('path');
 
 /**
- * Usage.
+ * Support functions.
  */
-
-program
-  .version(require('../package.json').version)
-  .usage("[options] [source] [destination]")
-  .option('-p, --plugins [plugins]', 'Add plugins');
-/**
- * Examples.
- */
-
-program.on('--help', function(){
-  console.log('  Examples:');
-  console.log();
-  console.log('    # build using current directory as source, and ./_site as destinaton"');
-  console.log('    $ ryver');
-  console.log();
-  console.log('    # build using /home/m/source as source, and and /home/m/source/_site as destinaton"');
-  console.log('    $ ryver /home/m/source');
-  console.log();
-  console.log('    # build using /home/m/source as source, and and /home/m/site as destinaton"');
-  console.log('    $ ryver /home/m/source /home/m/site');
-  console.log();
-});
-
-/**
- * Parse.
- */
-
-program.parse(process.argv);
-
-var cwd = process.cwd();
-var source = program.args[ 0 ] || '.';
-var dest = program.args[ 1 ] || './_site';
-
-pathIsExistingDir( source );
-pathIsExistingDir( dest );
-
-if( program.plugins != '' ){
-  var pluginsArray = program.plugins.split( '.' );
-
-  console.log( pluginsArray );
-}
-
-require('ryver-frontmatter');
-require('ryver-layout');
-require('ryver-markup-markdown');
-require('ryver-template-liquid');
-
-
-/*
-
-normalize(json.plugins).forEach(function(plugin){
-  for (var name in plugin) {
-    var opts = plugin[name];
-    var mod;
-
-    try {
-      var local = resolve(dir, name);
-      var npm = resolve(dir, 'node_modules', name);
-
-      if (exists(local) || exists(local + '.js')) {
-        mod = require(local);
-      } else if (exists(npm)) {
-        mod = require(npm);
-      } else {
-        mod = require(name);
-      }
-    } catch (e) {
-      fatal('failed to require plugin "' + name + '".');
-    }
-
-    try {
-      metalsmith.use(mod(opts));
-    } catch (e) {
-      fatal('error using plugin "' + name + '"...', e.message + '\n\n' + e.stack);
-    }
-  }
-});
-*/
-
-
-ryver.collectFilters( function( err ){
-  if( err ) return fatal( err.message, err.stack );
-
-  // Let the fun begin!
-  ryver.build( source, dest, {}, function( err ){
-    if( err ) return fatal( err.message, err.stack );
-
-    process.exit();
-  });
-})
 
 function pathIsExistingDir( path ){
   try {
@@ -130,4 +41,115 @@ function log(message){
   console.log();
   console.log(chalk.gray('  Ryver · ') + message);
   console.log();
+}
+
+
+/**
+ * Usage.
+ */
+
+program
+  .version(require('../package.json').version)
+  .usage("[options] [source] [destination]")
+  .option('-p, --plugins [plugins]', 'Add plugins')
+  .option('-v, --verbose', 'Verbose output')
+  .option('-x, --extra-verbose', 'Very verbose output');
+
+/**
+ * Examples.
+ */
+
+program.on('--help', function(){
+  console.log('  Examples:');
+  console.log();
+  console.log('    # build using current directory as source, and ./_site as destinaton"');
+  console.log('    $ ryver');
+  console.log();
+  console.log('    # build using /home/m/source as source, and and /home/m/source/_site as destinaton"');
+  console.log('    $ ryver /home/m/source');
+  console.log();
+  console.log('    # build using /home/m/source as source, and and /home/m/site as destinaton"');
+  console.log('    $ ryver /home/m/source /home/m/site');
+  console.log();
+  console.log('    # build loading the plugin "ryver-extrafilter" dynamically');
+  console.log('    $ ryver -p /home/m/source /home/m/site');
+  console.log();
+
+});
+
+/**
+ * Parse and get parameters.
+ */
+
+program.parse(process.argv);
+
+var cwd = process.cwd();
+var source = program.args[ 0 ] || '.';
+var dest = program.args[ 1 ] || './_site';
+
+pathIsExistingDir( source );
+pathIsExistingDir( dest );
+
+// Set verbosty level
+if( program.verbose ) ryver.setVerbose( 1 );
+else if( program.extraVerbose ) ryver.setVerbose( 2 );
+
+/**
+ * Load plugins.
+ */
+
+
+// Basic plugins that are always loaded
+var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid' ];
+//var plugins = [ 'frontmatter', 'layout', 'template-liquid' ];
+
+// Add plugins from command line parameter, if present
+if( program.plugins && program.plugins != '' ){
+  plugins = plugins.concat( program.plugins.split( ',' ) );
+}
+
+// Add plugin from "master" _info.yaml file
+
+
+// Try and read the master _info.yaml file
+fs.readFile( p.join( source, '_info.yaml'), function( err, info ){
+
+  // If the file couldn't be read, then that's it -- skip to afterPluginListLoaded()
+  if( err ) return afterPluginListLoaded();
+
+  try {
+    firstInfo = yaml.safeLoad( info, { filename:  p.join( source, '_info.yaml') } );
+  } catch( e ) {
+    fatal( e, e.stack );
+  }
+
+  // Add plugins from the first _info.yaml file
+  if( firstInfo.plugins && firstInfo.plugins != '' ){
+    plugins = plugins.concat( firstInfo.plugins.split( ',' ) );
+  }
+
+  // That's it: the list of plugins is final. Go to next stage.
+  afterPluginListLoaded();
+});
+
+
+
+
+function afterPluginListLoaded(){
+
+  // Load all plugins, which are the module named 'ryver' plus the plugin name
+  plugins.forEach( function( plugin ){
+    require( 'ryver-' + plugin );
+  });
+
+  ryver.collectFilters( function( err ){
+    if( err ) return fatal( err.message, err.stack );
+
+    // Let the fun begin!
+    ryver.build( source, dest, {}, function( err ){
+      if( err ) return fatal( err.message, err.stack );
+
+      process.exit();
+    });
+  })
 }
