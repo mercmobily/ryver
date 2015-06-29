@@ -1,6 +1,6 @@
 
 var async = require('async');
-var fs = require('fs')
+var fs = require('fs.extra')
 var p = require('path')
 var EventEmitterCollector = require("eventemittercollector");
 var mmm = require('mmmagic');
@@ -48,10 +48,13 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Create plugins file structure, include core ones, allow non-core ones
   * [X] Add command line/config to add non-core plugin
   * [X] Write fancy and nice logs when things happen, allow it to be verbose
+  * [X] Add filter to copy files over to destination directory respecting name/ext
 
   TUESDAY:
-  * [ ] Add filter to copy files over to destination directory respecting name/ext
-  * [ ] At least make a simple basic web site using it
+  * [ ] Write plugin to add an "intro" page for every page (first injection)
+  * [ ] Investigate "include" tag to include another file, maybe rendered
+  * [ ] Investigate ability to generate multiple pages, decided by "tags", decide
+        where to get the data from
 
   WEDNESDAY:
   * [ ] Write plugin to make tag lists, category list, maybe generic attribute
@@ -61,6 +64,8 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [ ] Re-enable specific tags that allow include/filtering
   * [ ] Publish to GitHub with basic documentation
 
+  FRIDAY
+  * [ ] At least make a simple basic web site using it
 */
 
 // Private module variables
@@ -255,7 +260,7 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
 
   // The first time it's run, it will set the source and the destination
   processing.src = processing.src || filePath;
-  processing.dst = processing.dst || filePath;
+  processing.dst = processing.dst || dst;
 
   fs.readdir( filePath, function( err, fileNames ){
     if( err ) return cb( err );
