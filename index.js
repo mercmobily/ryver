@@ -51,20 +51,24 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Add filter to copy files over to destination directory respecting name/ext
 
   TUESDAY:
-  * [ ] Write plugin to add an "intro" page for every page (first injection)
+  * [X] Write plugin to add an "intro" page for every page (first injection)
+
+  WED:
   * [ ] Investigate "include" tag to include another file, maybe rendered
   * [ ] Investigate ability to generate multiple pages, decided by "tags", decide
         where to get the data from
 
-  WEDNESDAY:
+  THE:
   * [ ] Write plugin to make tag lists, category list, maybe generic attribute
   * [ ] Write plugin that will page output safely, decide how to page tags
 
-  THURSDAY:
+  FRI:
   * [ ] Re-enable specific tags that allow include/filtering
-  * [ ] Publish to GitHub with basic documentation
 
-  FRIDAY
+  SAT:
+  * [ ] Document everything properly on GitHub
+
+  SUN:
   * [ ] At least make a simple basic web site using it
 */
 
@@ -77,68 +81,28 @@ var processing = {
   verbose: 0,
 };
 
+var getProcessingSrc = exports.getProcessingSrc = function(){
+  return processing.src;
+}
+
+var getProcessingDst = exports.getProcessingDst = function(){
+  return processing.dst;
+}
+
 // Private module methods
 
-var filter = exports.filter = function( filterList, fileData, cb){
+function isDir( fullFilePath, cb ){
 
-  var list = [];
-  var functions = [];
-
-  var fileContents = fileData.contents;
-
-  // Starting point is always considered to be an array
-  if( ! Array.isArray( filterList ) ) filterList = [ filterList ];
-
-  // Here, 'list' is a comma-separated list
-  filterList.forEach( function( f ) {
-
-    // Make up the list as array, and give up if it was empty
-    // Trim spaces, and filter out empty ones
-    var l = f.split(',').map( function( item ) {
-      return item.replace(/ /g, '' );
-    }).filter( function( item ){
-      if( item === '' ) return false;
-      return true;
-    });
-
-    // Add the filters to the list
-    list = list.concat( l );
-  })
-
-  list.forEach( function( filterName ){
-
-    // Sanity checks: filter must exist, and must not repeat
-    if( ! processing.filters[ filterName ] )
-      return cb( new Error("Filter " + filterName + " invalid!") );
-
-    // All good: add it, and mark it as already used
-    functions.push( function( fileData, cb ){
-
-      log( "Applying filter", filterName );
-
-      // Check that the filter hasn't already been applied
-      if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
-
-        vlog( "fileData after filtering is:", trimFileData( fileData ) );
-
-        return cb( null, fileData );
-      }
-      processing.filters[ filterName ].call( this, fileData, cb );
-      fileData.system.processedBy.push( filterName );
-    });
-
-  });
-  var toExecute = [ function( cb ){
-    return cb( null, fileData );
-
-  } ].concat( functions );
-
-  async.waterfall( toExecute, function( err, fileData){
+  fs.lstat( fullFilePath, function( err, fileStat ){
     if( err ) return cb( err );
 
-    cb( null, fileData );
+    // It's a directory: rerun the whole thing in that directory
+    if( fileStat.isDirectory() ) return cb( null, true );
+
+    return cb( null, false );
   });
 }
+
 
 // Public module variables
 var eventEC = exports.eventEC = new EventEmitterCollector;
@@ -225,6 +189,13 @@ var enrichObject = exports.enrichObject = function( b, o ){
   }
 }
 
+var setSystemData = exports.setSystemData = function( system, key, value ) {
+  system[ key + '_history' ] = system[ key + '_history' ] || [];
+  system[ key + '_history' ].push( system[ key ] );
+  system[ key ] = value;
+}
+
+/*
 var changeFileExt = exports.changeFileExt = function( system, ext ){
 
   // Add extension to history
@@ -235,6 +206,7 @@ var changeFileExt = exports.changeFileExt = function( system, ext ){
   system.fileExt = ext.toLowerCase();
   system.fileName = system.fileName.substr( 0, system.fileName.lastIndexOf(".")) + "." + ext;
 }
+*/
 
 var collectFilters = exports.collectFilters = function( cb ){
 
@@ -250,8 +222,146 @@ var collectFilters = exports.collectFilters = function( cb ){
   });
 }
 
+var filter = exports.filter = function( fileData, cb){
 
-var build = exports.build = function( filePath, dst, passedInfo, cb ){
+  var preProcessFilters = fileData.info.preProcessFilters || '';
+
+  if( preProcessFilters != '' )
+    log( "About to apply pre-process filters: ",preProcessFilters );
+  else
+    log( "No pre-process filters to apply" );
+
+  applyFilterList( preProcessFilters, fileData, function( err, fileData) {
+    if( err ) return cb( err );
+
+    if( preProcessFilters != '' )
+      vlog( "After pre-process filters, contents are: ", trimFileData( fileData ) );
+
+    var defaultPreFilters = fileData.info.defaultPreFilters || '';
+    var filters = fileData.info.filters || '';
+    var defaultPostFilters = fileData.info.defaultPostFilters || '';
+
+    log( "About to apply pre-filters, filters and post-filters" );
+    if( defaultPreFilters != '' ) log( "Pre-filters: ", defaultPreFilters );
+    else log( "No pre-filters" );
+    if( filters != '' ) log( "Filters: ", filters );
+    else log( "No filters" );
+    if( defaultPostFilters != '' ) log( "Post-filters: ", defaultPostFilters );
+    else log( "No post-filters" );
+
+    applyFilterList( [ defaultPreFilters, filters, defaultPostFilters ], fileData, function( err, fileData) {
+      if( err ) return cb( err );
+
+      vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
+      cb( null );
+    });
+  });
+}
+
+var applyFilterList = exports.applyFilterList = function( filterList, fileData, cb){
+
+  var list = [];
+  var functions = [];
+
+  var fileContents = fileData.contents;
+
+  // Starting point is always considered to be an array
+  if( ! Array.isArray( filterList ) ) filterList = [ filterList ];
+
+  // Here, 'list' is a comma-separated list
+  filterList.forEach( function( f ) {
+
+    // Make up the list as array, and give up if it was empty
+    // Trim spaces, and filter out empty ones
+    var l = f.split(',').map( function( item ) {
+      return item.replace(/ /g, '' );
+    }).filter( function( item ){
+      if( item === '' ) return false;
+      return true;
+    });
+
+    // Add the filters to the list
+    list = list.concat( l );
+  })
+
+  list.forEach( function( filterName ){
+
+    // Sanity checks: filter must exist, and must not repeat
+    if( ! processing.filters[ filterName ] )
+      return cb( new Error("Filter " + filterName + " invalid!") );
+
+    // All good: add it, and mark it as already used
+    functions.push( function( fileData, cb ){
+
+      log( "Applying filter", filterName );
+
+      // Check that the filter hasn't already been applied
+      if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
+
+        vlog( "fileData after filtering is:", trimFileData( fileData ) );
+
+        return cb( null, fileData );
+      }
+      processing.filters[ filterName ].call( this, fileData, cb );
+      fileData.system.processedBy.push( filterName );
+    });
+
+  });
+  var toExecute = [ function( cb ){
+    return cb( null, fileData );
+
+  } ].concat( functions );
+
+  async.waterfall( toExecute, function( err, fileData){
+    if( err ) return cb( err );
+
+    cb( null, fileData );
+  });
+}
+
+var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt, fileContentsAsBuffer, info, cb ){
+
+  var fullFilePath = p.join( filePath, fileName + fileExt );
+
+  if( fileContentsAsBuffer ){
+    restOfFunction();
+  } else {
+    fs.readFile( fullFilePath, function( err, fr ){
+      if( err ) return cb( err );
+      fileContentsAsBuffer = fr;
+      restOfFunction();
+    });
+  }
+
+  function restOfFunction(){
+
+    magic.detect( fileContentsAsBuffer, function( err, magic ){
+      if( err ) return cb( err );
+
+      // Sets the basic file info
+      var fileData = {
+        system: {
+          //fullFilePath: fullFilePath,
+          filePath: filePath,
+          fileName: fileName,
+          fileExt: fileExt,
+          fileContentsAsBuffer: fileContentsAsBuffer,
+
+          mimetype: magic,
+          processedBy: [],
+        },
+        initialInfo: cloneObject( info ),
+        info: cloneObject( info ),
+        initialContents: fileContentsAsBuffer,
+        contents: fileContentsAsBuffer.toString(),
+      };
+
+      cb( null, fileData );
+    });
+  }
+}
+
+var build = exports.build = function( dirPath, dst, passedInfo, cb ){
 
   // There is one "passedInfo" per directory transfersed,
   // and several files to be filtered in each directory.
@@ -259,25 +369,25 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
   var info;
 
   // The first time it's run, it will set the source and the destination
-  processing.src = processing.src || filePath;
+  processing.src = processing.src || dirPath;
   processing.dst = processing.dst || dst;
 
-  fs.readdir( filePath, function( err, fileNames ){
+  fs.readdir( dirPath, function( err, fileNamesWithExt ){
     if( err ) return cb( err );
 
-    log( "Will process the following files:", fileNames );
+    log( "Will process the following files:", fileNamesWithExt );
     vlog( "Info (including inherited values) is:", passedInfo );
 
     // There is a _info.yaml in the local directory! It will load it, and
     // make an info object based on passedInfo enriched with localInfo
-    if( fileNames.indexOf( '_info.yaml' ) !== -1 ){
+    if( fileNamesWithExt.indexOf( '_info.yaml' ) !== -1 ){
 
       log( "File _info.yaml found, reading it and enriching Info with it");
 
-      fs.readFile( p.join( filePath, '_info.yaml' ), function( err, loadedInfo ){
+      fs.readFile( p.join( dirPath, '_info.yaml' ), function( err, loadedInfo ){
         if( err ) return cb( err );
         try {
-          var localInfo = yaml.safeLoad( loadedInfo, { filename: p.join( filePath, 'info.yaml' ) } );
+          var localInfo = yaml.safeLoad( loadedInfo, { filename: p.join( dirPath, 'info.yaml' ) } );
           info = cloneObject( passedInfo );
           enrichObject( info, localInfo );
           vlog( "Info after enriching with local _info.yaml is:", info );
@@ -296,7 +406,7 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
 
       log( "Going through all files in the directory" );
       async.eachSeries(
-        fileNames,
+        fileNamesWithExt,
         function( fileName, cb ){
 
           log( "Processing ", fileName );
@@ -305,82 +415,34 @@ var build = exports.build = function( filePath, dst, passedInfo, cb ){
             return cb( null );
           }
 
-          var fileNameWithPath = p.join( filePath, fileName );
+          var fileExt = p.extname( fileName );
+          fileName = p.basename( fileName, fileExt );
 
-          fs.lstat( fileNameWithPath, function( err, fileStat ){
+          var fullFilePath = p.join( dirPath, fileName + fileExt );
+          console.log(fullFilePath);
+          isDir( fullFilePath, function( err, dir ){
             if( err ) return cb( err );
 
-            // It's a directory: rerun the whole thing in that directory
-            if( fileStat.isDirectory() ){
-
+            // If it's a directory, process it as such
+            if( dir ){
               log( "File is a directory. Entering it, and processing files in there" );
-              return build( fileNameWithPath, dst, info, cb );
-            };
+              return build( fullFilePath, dst, info, cb );
+            }
 
             log( "It is a file. Reading its contents" );
 
-            fs.readFile( fileNameWithPath, function( err, fileContentsAsBuffer ){
+            makeFileData( dirPath, fileName, fileExt, null, info, function( err, fileData ){
+
               if( err ) return cb( err );
 
-              magic.detect( fileContentsAsBuffer, function( err, magic ){
+              log( "Basic fileData created" );
+              vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
+              log( "The file's mime type is ", fileData.system.mimetype );
 
-                log( "The file's mime type is ", magic );
+              filter( fileData, function( err ){
+                if( err ) return cb( err );
 
-                // Sets the basic file info
-                var fileData = {
-                  system: {
-                    fileNameWithPath: fileNameWithPath,
-                    filePath: filePath,
-                    fileContentsAsBuffer: fileContentsAsBuffer,
-
-                    fileName: fileName,
-                    fileExt: fileName.split('.').pop().toLowerCase(),
-                    mimetype: magic,
-                    processedBy: [],
-                    src: processing.src,
-                    dst: processing.dst,
-                  },
-                  info: cloneObject( info ),
-                  contents: fileContentsAsBuffer.toString(),
-                  initialContents: fileContentsAsBuffer
-                };
-
-                log( "Basic fileData created" );
-                vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
-
-                var preProcessFilters = info.preProcessFilters || '';
-
-                if( preProcessFilters != '' )
-                  log( "About to apply pre-process filters: ",preProcessFilters );
-                else
-                  log( "No pre-process filters to apply" );
-
-                filter( preProcessFilters, fileData, function( err, fileData) {
-                  if( err ) return cb( err );
-
-                  if( preProcessFilters != '' )
-                    vlog( "After pre-process filters, contents are: ", trimFileData( fileData ) );
-
-                  var defaultPreFilters = fileData.info.defaultPreFilters || '';
-                  var filters = fileData.info.filters || '';
-                  var defaultPostFilters = fileData.info.defaultPostFilters || '';
-
-                  log( "About to apply pre-filters, filters and post-filters" );
-                  if( defaultPreFilters != '' ) log( "Pre-filters: ", defaultPreFilters );
-                  else log( "No pre-filters" );
-                  if( filters != '' ) log( "Filters: ", filters );
-                  else log( "No filters" );
-                  if( defaultPostFilters != '' ) log( "Post-filters: ", defaultPostFilters );
-                  else log( "No post-filters" );
-
-                  filter( [ defaultPreFilters, filters, defaultPostFilters ], fileData, function( err, fileData) {
-                    if( err ) return cb( err );
-
-                    vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
-
-                    cb( null );
-                  });
-                });
+                cb( null );
               })
             })
           })

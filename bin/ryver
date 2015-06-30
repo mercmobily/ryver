@@ -98,7 +98,6 @@ else if( program.extraVerbose ) ryver.setVerbose( 2 );
  * Load plugins.
  */
 
-
 // Basic plugins that are always loaded
 var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy' ];
 //var plugins = [ 'frontmatter', 'layout', 'template-liquid' ];
@@ -131,7 +130,6 @@ fs.readFile( p.join( source, '_info.yaml'), function( err, info ){
   // That's it: the list of plugins is final. Go to next stage.
   afterPluginListLoaded();
 });
-
 
 
 
