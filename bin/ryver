@@ -84,11 +84,14 @@ program.on('--help', function(){
 program.parse(process.argv);
 
 var cwd = process.cwd();
-var source = program.args[ 0 ] || '.';
-var dest = program.args[ 1 ] || './_site';
+var src = program.args[ 0 ] || '.';
+var dst = program.args[ 1 ] || './_site';
 
-pathIsExistingDir( source );
-pathIsExistingDir( dest );
+pathIsExistingDir( src );
+pathIsExistingDir( dst );
+
+ryver.setSrc( src );
+ryver.setDst( dst );
 
 // Set verbosty level
 if( program.verbose ) ryver.setVerbose( 1 );
@@ -99,8 +102,7 @@ else if( program.extraVerbose ) ryver.setVerbose( 2 );
  */
 
 // Basic plugins that are always loaded
-var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy' ];
-//var plugins = [ 'frontmatter', 'layout', 'template-liquid' ];
+var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy', 'landing' ];
 
 // Add plugins from command line parameter, if present
 if( program.plugins && program.plugins != '' ){
@@ -109,15 +111,14 @@ if( program.plugins && program.plugins != '' ){
 
 // Add plugin from "master" _info.yaml file
 
-
 // Try and read the master _info.yaml file
-fs.readFile( p.join( source, '_info.yaml'), function( err, info ){
+fs.readFile( p.join( src, '_info.yaml'), function( err, info ){
 
   // If the file couldn't be read, then that's it -- skip to afterPluginListLoaded()
   if( err ) return afterPluginListLoaded();
 
   try {
-    firstInfo = yaml.safeLoad( info, { filename:  p.join( source, '_info.yaml') } );
+    firstInfo = yaml.safeLoad( info, { filename:  p.join( src, '_info.yaml') } );
   } catch( e ) {
     fatal( e, e.stack );
   }
@@ -144,7 +145,7 @@ function afterPluginListLoaded(){
     if( err ) return fatal( err.message, err.stack );
 
     // Let the fun begin!
-    ryver.build( source, dest, {}, function( err ){
+    ryver.build( function( err ){
       if( err ) return fatal( err.message, err.stack );
 
       process.exit();

@@ -54,16 +54,20 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Write plugin to add an "intro" page for every page (first injection)
 
   WED:
-  * [ ] Investigate "include" tag to include another file, maybe rendered
-  * [ ] Investigate ability to generate multiple pages, decided by "tags", decide
-        where to get the data from
+  * [X] Give option to have landing page in a "main" folder so that other filters can use it.
+  * [X] Move "landing" to its own module since it shouldn't be part of "copying"
+  * [X] Provide the including file's INFO to the landing file before rendering
+  * [ ] Take src path out when copying file
 
-  THE:
-  * [ ] Write plugin to make tag lists, category list, maybe generic attribute
-  * [ ] Write plugin that will page output safely, decide how to page tags
+  THR:
+  * [ ] Reintroduce "tags". Own filter with filter's API? Main module?
+  * [ ] Implement "include" tag to include another file, maybe rendered. If so,
+        which fileInfo file should be used? Probably give options.
 
   FRI:
-  * [ ] Re-enable specific tags that allow include/filtering
+  * [ ] Write plugin to make tag/category list
+  * [ ] Write plugin that will page output safely. Find a way to re-start filtering
+        with the next filter in the list
 
   SAT:
   * [ ] Document everything properly on GitHub
@@ -81,17 +85,40 @@ var processing = {
   verbose: 0,
 };
 
-var getProcessingSrc = exports.getProcessingSrc = function(){
-  return processing.src;
-}
-
-var getProcessingDst = exports.getProcessingDst = function(){
-  return processing.dst;
-}
 
 // Private module methods
 
-function isDir( fullFilePath, cb ){
+// Public module variables
+var eventEC = exports.eventEC = new EventEmitterCollector;
+
+// Public module methods
+
+
+// Getters and setters for 'processing' variables
+
+var setVerbose = exports.setVerbose = function( verbose ){
+  processing.verbose = verbose;
+}
+
+var getSrc = exports.getSrc = function(){
+  return processing.src;
+}
+
+var setSrc = exports.setSrc = function( src ){
+  processing.src = src;
+}
+
+var setDst = exports.setDst = function( dst ){
+  processing.dst = dst;
+}
+
+var getDst = exports.getDst = function(){
+  return processing.dst;
+}
+
+
+
+var isDir = exports.isDir = function( fullFilePath, cb ){
 
   fs.lstat( fullFilePath, function( err, fileStat ){
     if( err ) return cb( err );
@@ -103,15 +130,18 @@ function isDir( fullFilePath, cb ){
   });
 }
 
+var isFile = exports.isFile = function( fullFilePath, cb ){
 
-// Public module variables
-var eventEC = exports.eventEC = new EventEmitterCollector;
+  fs.lstat( fullFilePath, function( err, fileStat ){
+    if( err ) return cb( err );
 
-// Public module methods
+    // It's a directory: rerun the whole thing in that directory
+    if( fileStat.isFile() ) return cb( null, true );
 
-var setVerbose = exports.setVerbose = function( verbose ){
-  processing.verbose = verbose;
+    return cb( null, false );
+  });
 }
+
 
 var log = exports.log = function( ){
   if( processing.verbose == 1 || processing.verbose == 2 ){
@@ -124,6 +154,45 @@ var vlog = exports.log = function( ){
     console.log.apply( this, arguments );
   }
 }
+
+
+var readFile = exports.readFile = function( path, backupPath, fileNameAndExt, cb ){
+
+  var usedBackup = false;
+  var fileContentsAsBuffer;
+
+  // Load the contents of the landing file
+  fs.readFile( p.join( path, fileNameAndExt ), function( err, c ){
+    if( err && err.code !== 'ENOENT' ) return cb( null );
+
+    if( err && err.code == 'ENOENT' ){
+      usedBackup = true;
+      fs.readFile( p.join( backupPath, fileNameAndExt ), function( err, c ){
+        if( err ) return cb( err );
+
+        fileContentsAsBuffer = c;
+        usedBackup = true;
+        restOfFunction();
+      });
+
+    } else {
+      fileContentsAsBuffer = c;
+      restOfFunction();
+    }
+
+    function restOfFunction(){
+      // At this point, usedBackup and fileContentsAsBuffer
+      // are all set and good
+
+      // Using this function here in case I will need to do more
+      // here later
+
+      cb( null, fileContentsAsBuffer, usedBackup );
+
+    }
+  });
+}
+
 
 var trimFileData = exports.trimFileData = function( fileData ){
   var newFileData = {};
@@ -195,19 +264,6 @@ var setSystemData = exports.setSystemData = function( system, key, value ) {
   system[ key ] = value;
 }
 
-/*
-var changeFileExt = exports.changeFileExt = function( system, ext ){
-
-  // Add extension to history
-  system.fileExtHistory = system.fileExtHistory || [];
-  system.fileExtHistory.push( system.fileExt );
-
-  // Set new extension for both fileName and fileExt
-  system.fileExt = ext.toLowerCase();
-  system.fileName = system.fileName.substr( 0, system.fileName.lastIndexOf(".")) + "." + ext;
-}
-*/
-
 var collectFilters = exports.collectFilters = function( cb ){
 
   log( "Collecting filters")
@@ -237,19 +293,19 @@ var filter = exports.filter = function( fileData, cb){
     if( preProcessFilters != '' )
       vlog( "After pre-process filters, contents are: ", trimFileData( fileData ) );
 
-    var defaultPreFilters = fileData.info.defaultPreFilters || '';
+    var preFilters = fileData.info.preFilters || '';
     var filters = fileData.info.filters || '';
-    var defaultPostFilters = fileData.info.defaultPostFilters || '';
+    var postFilters = fileData.info.postFilters || '';
 
     log( "About to apply pre-filters, filters and post-filters" );
-    if( defaultPreFilters != '' ) log( "Pre-filters: ", defaultPreFilters );
+    if( preFilters != '' ) log( "Pre-filters: ", preFilters );
     else log( "No pre-filters" );
     if( filters != '' ) log( "Filters: ", filters );
     else log( "No filters" );
-    if( defaultPostFilters != '' ) log( "Post-filters: ", defaultPostFilters );
+    if( postFilters != '' ) log( "Post-filters: ", postFilters );
     else log( "No post-filters" );
 
-    applyFilterList( [ defaultPreFilters, filters, defaultPostFilters ], fileData, function( err, fileData) {
+    applyFilterList( [ preFilters, filters, postFilters ], fileData, function( err, fileData) {
       if( err ) return cb( err );
 
       vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
@@ -297,13 +353,16 @@ var applyFilterList = exports.applyFilterList = function( filterList, fileData, 
 
       // Check that the filter hasn't already been applied
       if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
-
-        vlog( "fileData after filtering is:", trimFileData( fileData ) );
-
+        vlog( "Filter was already applied:", filterName );
         return cb( null, fileData );
       }
-      processing.filters[ filterName ].call( this, fileData, cb );
-      fileData.system.processedBy.push( filterName );
+      processing.filters[ filterName ].call( this, fileData, function( err ){
+        if( err ) return cb( err );
+
+        vlog( "fileData after filtering is:", trimFileData( fileData ) );
+        fileData.system.processedBy.push( filterName );
+        cb( null, fileData  );
+      });
     });
 
   });
@@ -361,17 +420,27 @@ var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt,
   }
 }
 
-var build = exports.build = function( dirPath, dst, passedInfo, cb ){
+var build = exports.build = function( dirPath, passedInfo, cb ){
 
-  // There is one "passedInfo" per directory transfersed,
-  // and several files to be filtered in each directory.
+  // THis function only works if process.src and process.dst are set
+  if( getSrc() === null )
+    return cb( new Error("You must set the source directory first with ryver.setSrc()"));
 
-  var info;
+  if( getDst() === null )
+    return cb( new Error("You must set the destination directory first with ryver.setDst()"));
 
-  // The first time it's run, it will set the source and the destination
-  processing.src = processing.src || dirPath;
-  processing.dst = processing.dst || dst;
+  // If the API signature `build( cb )` is used (no parameters),
+  // then set the initial parameters.
+  // Subsequent calls to this function will use the recursive signature
+  // build( dirPath, passedInfo )
 
+  if( typeof dirPath === 'function' ){
+    cb = dirPath;
+    dirPath = getSrc();
+    passedInfo = {};
+  }
+
+  // Read all of the files in that directory
   fs.readdir( dirPath, function( err, fileNamesWithExt ){
     if( err ) return cb( err );
 
@@ -382,7 +451,7 @@ var build = exports.build = function( dirPath, dst, passedInfo, cb ){
     // make an info object based on passedInfo enriched with localInfo
     if( fileNamesWithExt.indexOf( '_info.yaml' ) !== -1 ){
 
-      log( "File _info.yaml found, reading it and enriching Info with it");
+      log( "File _info.yaml found, reading it and enriching fileInfo with it");
 
       fs.readFile( p.join( dirPath, '_info.yaml' ), function( err, loadedInfo ){
         if( err ) return cb( err );
@@ -419,14 +488,13 @@ var build = exports.build = function( dirPath, dst, passedInfo, cb ){
           fileName = p.basename( fileName, fileExt );
 
           var fullFilePath = p.join( dirPath, fileName + fileExt );
-          console.log(fullFilePath);
           isDir( fullFilePath, function( err, dir ){
             if( err ) return cb( err );
 
             // If it's a directory, process it as such
             if( dir ){
               log( "File is a directory. Entering it, and processing files in there" );
-              return build( fullFilePath, dst, info, cb );
+              return build( fullFilePath, info, cb );
             }
 
             log( "It is a file. Reading its contents" );
