@@ -132,7 +132,7 @@ fs.readFile( p.join( src, '_info.yaml'), function( err, info ){
   afterPluginListLoaded();
 });
 
-
+3
 
 function afterPluginListLoaded(){
 
