@@ -60,21 +60,9 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Take src path out when copying file
 
   THR:
-  * [ ] Reintroduce "tags". Own filter with filter's API? Main module?
-  * [ ] Implement "include" tag to include another file, maybe rendered. If so,
-        which fileInfo file should be used? Probably give options.
-
-  POINTS:
-
-  - A file is always included either from _includes or from the local directory. In both
-    cases, we can get to the directory's fileInfo
-
-  - A file that is included can be "raw" included, or processed first. If processed, it will
-    need to make sure it doesn't include filters that generate pages. _info.yaml in `_includes`
-    should probably reflect that. Or, even better, decide that no _info.yalm is ever considered
-    for included files. This will simplify code and reduce greatly the side effects and things
-    to remember.
-
+  * [X] Delete tags Reintroduce "tags". Own filter with filter's API? Main module?
+  * [X] Make `include` work with liquid o include another file, maybe rendered.
+  * [ ] Implement a liquid template to include a file and apply filtering, maybe extend `include`
 
   FRI:
   * [ ] Write plugin to make tag/category list
