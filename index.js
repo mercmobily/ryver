@@ -365,7 +365,7 @@ var applyFilterList = exports.applyFilterList = function( filterList, fileData, 
 
       // Check that the filter hasn't already been applied
       if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
-        vlog( "Filter was already applied:", filterName );
+        log( "Filter was already applied:", filterName );
         return cb( null, fileData );
       }
       processing.filters[ filterName ].call( this, fileData, function( err ){
