@@ -49,9 +49,15 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Delete tags Reintroduce "tags". Own filter with filter's API? Main module?
   * [X] Make `include` work with liquid o include another file, maybe rendered.
   * [X] Make function that reads config file and sets config, use it instead of "master" _info.yaml
-  * [ ] Write plugin to allow grouping of posts by tag/category/anything
-  * [ ] Write plugin that will page single-page output safely. Find a way to re-start filtering
-        with the next filter in the list
+  * [X] Add beforeDelayedPostProcess and afterDelayedPostProcess events, and use them in sorting
+  * [X] Make sure sorting of tags happens a the right step
+
+  * [ ] Write grouper to have list of 10 latest posts
+  * [ ] Write grouper to write paginating file with list of entries
+
+  * [ ] Write plugin that will page single-page output safely. MAYBE find a way to re-start filtering
+        with the next filter in the list?
+
   * [ ] Write "serve" command that will serve a file structore
   * [ ] Write "observe" command that will observe file system and re-filter files as needed
   * [ ] Document everything properly on GitHub
@@ -76,6 +82,21 @@ var processing = {
 
 
 // Private module methods
+
+function emitAndApplyEach( eventName, cb ){
+
+  eventEC.emitCollect( eventName, function( err, ret ){
+    if( err ) return cb( err );
+
+    console.log("Event: ", eventName, "Number of functions to apply:", ret.onlyResults().length );
+    async.applyEach( ret.onlyResults(), function( err ){
+      if( err ) return cb( err );
+
+      cb( null );
+    });
+  });
+}
+
 
 // Public module variables
 
@@ -365,10 +386,10 @@ var applyFilterList = exports.applyFilterList = function( filterList, fileData, 
       log( "Applying filter", filterName );
 
       // Check that the filter hasn't already been applied
-      //if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
-      //  log( "Filter was already applied:", filterName );
-      //  return cb( null, fileData );
-      //}
+      if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
+        log( "Filter was already applied:", filterName );
+        return cb( null, fileData );
+      }
       processing.filters[ filterName ].call( this, fileData, function( err ){
         if( err ) return cb( err );
 
@@ -448,6 +469,43 @@ var readConfig = exports.readConfig = function( dirPath, cb ){
     cb( null, config );
   });
 }
+
+
+var filterDelayedItems = exports.filterDelayedItems = function( cb ){
+
+  if( processing.toPostProcess.length !== 0 )
+    log( "There are some files that had delayPostProcess set to true. Processing them now" );
+
+  emitAndApplyEach( 'beforeDelayedPostProcess', function( err ){
+    if( err ) return cb( err );
+
+    async.eachSeries(
+      processing.toPostProcess,
+
+      function( fileData, cb ){
+        var postProcessFilters = fileData.info.postProcessFilters || '';
+        log( "Processing ", fileData.system.fileName + fileData.system.fileExt );
+        log( "Running postProcessFilters:", postProcessFilters );
+
+        applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+          if( err ) return cb( err );
+
+          cb( null );
+        });
+      },
+
+      function( err ){
+
+        emitAndApplyEach( 'afterDelayedPostProcess', function( err ){
+          if( err ) return cb( null );
+
+          cb( null );
+        });
+      }
+    );
+  });
+}
+
 
 var build = exports.build = function( dirPath, passedInfo, cb ){
 
@@ -557,39 +615,13 @@ var build = exports.build = function( dirPath, passedInfo, cb ){
 
           log( "******** THE END*************************************************" );
 
-          if( processing.toPostProcess.length !== 0 )
-            log( "There are some files that had delayPostProcess set to true. Processing them now" );
+          // At this point, we ought to process all the items that reused to get processed
+          // and are now in processing.toPostProcess
+          filterDelayedItems( function( err ){
+            if( err ) return cb( err );
 
-          async.eachSeries(
-            processing.toPostProcess,
-
-            function( fileData, cb ){
-              var postProcessFilters = fileData.info.postProcessFilters || '';
-              log( "Processing ", fileData.system.fileName + fileData.system.fileExt );
-              log( "Running postProcessFilters:", postProcessFilters );
-
-              applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
-                if( err ) return cb( err );
-
-                cb( null );
-              });
-            },
-
-            function( err ){
-
-              eventEC.emitCollect( 'afterFilter', function( err, afterFilters ){
-                if( err ) return cb( err );
-
-                console.log("Afterfilters: ", afterFilters.onlyResults() );
-                async.applyEach( afterFilters.onlyResults(), function( err ){
-
-                  if( err ) return cb( null );
-
-                  cb( null );
-                });
-              });
-            }
-          );
+            cb( null );
+          })
         }
       ); // End of async cycle
     }
