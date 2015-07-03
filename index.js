@@ -18,25 +18,17 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Implement some basic tags
   * [X] Add event when file is processed
   * [X] Add event when _all_ files are processed
-
   * [X] Use mmmagic to find out file type, add it to file data
-
   * [X] Switch to YAML for info
   * [X] Load front matter using YAML, same syntax as Jekyll
-
   * [X] Do not apply any filtering to files starting with _. Maybe completely ignore such files
-
   * [X] Make info.yaml invisible, and make it "inherit" the prevous directory's values
-
   * [X] Add way to prioritise plugins and filters
-
   * [X] Layout templates
       [X] Add filter to add header andfooter to file
       [X] Add filter that will apply a template and change file name and ext
       [X] Implement markdown, change extension and mime type to info
-
   * [X] Rationalise variable and attribute names, structure of info
-
   * [X] Add defaultPreFilters and defaultPostFilters to info
   * [X] Tidy up code as singleton object
   * [X] Change it so that there is only ONE parameter passed to each function
@@ -49,31 +41,26 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Add command line/config to add non-core plugin
   * [X] Write fancy and nice logs when things happen, allow it to be verbose
   * [X] Add filter to copy files over to destination directory respecting name/ext
-
-  TUESDAY:
   * [X] Write plugin to add an "intro" page for every page (first injection)
-
-  WED:
   * [X] Give option to have landing page in a "main" folder so that other filters can use it.
   * [X] Move "landing" to its own module since it shouldn't be part of "copying"
   * [X] Provide the including file's INFO to the landing file before rendering
   * [X] Take src path out when copying file
-
-  THR:
   * [X] Delete tags Reintroduce "tags". Own filter with filter's API? Main module?
   * [X] Make `include` work with liquid o include another file, maybe rendered.
-  * [ ] Implement a liquid template to include a file and apply filtering, maybe extend `include`
-
-  FRI:
-  * [ ] Write plugin to make tag/category list
-  * [ ] Write plugin that will page output safely. Find a way to re-start filtering
+  * [X] Make function that reads config file and sets config, use it instead of "master" _info.yaml
+  * [ ] Write plugin to allow grouping of posts by tag/category/anything
+  * [ ] Write plugin that will page single-page output safely. Find a way to re-start filtering
         with the next filter in the list
-
-  SAT:
+  * [ ] Write "serve" command that will serve a file structore
+  * [ ] Write "observe" command that will observe file system and re-filter files as needed
   * [ ] Document everything properly on GitHub
-
-  SUN:
+  * [ ] Write test file that needs to be rendered properly, use result as test
   * [ ] At least make a simple basic web site using it
+
+STAND BY:
+  * [ ] Implement a liquid template to include a file and apply filtering, maybe extend `include`
+        https://github.com/leizongmin/tinyliquid/issues/33
 */
 
 // Private module variables
@@ -83,18 +70,28 @@ var processing = {
   src: null,
   dst: null,
   verbose: 0,
+  toPostProcess: [],
+  config: {},
 };
 
 
 // Private module methods
 
 // Public module variables
-var eventEC = exports.eventEC = new EventEmitterCollector;
 
 // Public module methods
 
+var eventEC = exports.eventEC = new EventEmitterCollector;
 
 // Getters and setters for 'processing' variables
+
+var getConfig = exports.getConfig = function(){
+  return processing.config;
+}
+
+var setConfig = exports.setConfig = function( config ){
+  processing.config = config;
+}
 
 var setVerbose = exports.setVerbose = function( verbose ){
   processing.verbose = verbose;
@@ -116,7 +113,9 @@ var getDst = exports.getDst = function(){
   return processing.dst;
 }
 
-
+var getFilters = exports.getFilters = function(){
+  return processing.filters;
+}
 
 var isDir = exports.isDir = function( fullFilePath, cb ){
 
@@ -309,7 +308,21 @@ var filter = exports.filter = function( fileData, cb){
       if( err ) return cb( err );
 
       vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
-      cb( null );
+
+      if( fileData.info.delayPostProcess ){
+        log( "The element has been marked for delayed postProcess, not running postProcessFilter for now" );
+        processing.toPostProcess.push( fileData );
+        return cb( null, fileData );
+      } else {
+        log( "Running postProcessFilters immediately" );
+        var postProcessFilters = fileData.info.postProcessFilters || '';
+
+        applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+          if( err ) return cb( err );
+
+          return cb( null, fileData );
+        });
+      }
     });
   });
 }
@@ -352,10 +365,10 @@ var applyFilterList = exports.applyFilterList = function( filterList, fileData, 
       log( "Applying filter", filterName );
 
       // Check that the filter hasn't already been applied
-      if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
-        log( "Filter was already applied:", filterName );
-        return cb( null, fileData );
-      }
+      //if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
+      //  log( "Filter was already applied:", filterName );
+      //  return cb( null, fileData );
+      //}
       processing.filters[ filterName ].call( this, fileData, function( err ){
         if( err ) return cb( err );
 
@@ -420,14 +433,32 @@ var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt,
   }
 }
 
+var readConfig = exports.readConfig = function( dirPath, cb ){
+
+  // Try and read the master _info.yaml file
+  fs.readFile( p.join( dirPath, '_config.yaml'), function( err, configContents ){
+    if( err ) return cb( err );
+
+    try {
+      config = yaml.safeLoad( configContents, { filename:  p.join( dirPath, '_config.yaml') } );
+    } catch( e ) {
+      return cb( err );
+    }
+
+    cb( null, config );
+  });
+}
+
 var build = exports.build = function( dirPath, passedInfo, cb ){
 
-  // THis function only works if process.src and process.dst are set
+  // This function only works if process.src and process.dst are set
   if( getSrc() === null )
     return cb( new Error("You must set the source directory first with ryver.setSrc()"));
 
   if( getDst() === null )
     return cb( new Error("You must set the destination directory first with ryver.setDst()"));
+
+  var mainCycle = false;
 
   // If the API signature `build( cb )` is used (no parameters),
   // then set the initial parameters.
@@ -438,6 +469,7 @@ var build = exports.build = function( dirPath, passedInfo, cb ){
     cb = dirPath;
     dirPath = getSrc();
     passedInfo = {};
+    mainCycle = true;
   }
 
   // Read all of the files in that directory
@@ -519,16 +551,45 @@ var build = exports.build = function( dirPath, passedInfo, cb ){
         function( err ){
           if( err ) return cb( err );
 
-          eventEC.emitCollect( 'afterFilter', function( err, afterFilters ){
-            if( err ) return cb( err );
+          console.log("mainCycle:", mainCycle );
 
-            async.applyEach( afterFilters.onlyResults(), function( err ){
+          if( ! mainCycle ) return cb( null );
 
-              if( err ) return cb( null );
+          log( "******** THE END*************************************************" );
 
-              cb( null );
-            });
-         });
+          if( processing.toPostProcess.length !== 0 )
+            log( "There are some files that had delayPostProcess set to true. Processing them now" );
+
+          async.eachSeries(
+            processing.toPostProcess,
+
+            function( fileData, cb ){
+              var postProcessFilters = fileData.info.postProcessFilters || '';
+              log( "Processing ", fileData.system.fileName + fileData.system.fileExt );
+              log( "Running postProcessFilters:", postProcessFilters );
+
+              applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+                if( err ) return cb( err );
+
+                cb( null );
+              });
+            },
+
+            function( err ){
+
+              eventEC.emitCollect( 'afterFilter', function( err, afterFilters ){
+                if( err ) return cb( err );
+
+                console.log("Afterfilters: ", afterFilters.onlyResults() );
+                async.applyEach( afterFilters.onlyResults(), function( err ){
+
+                  if( err ) return cb( null );
+
+                  cb( null );
+                });
+              });
+            }
+          );
         }
       ); // End of async cycle
     }
