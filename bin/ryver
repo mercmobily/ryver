@@ -102,7 +102,7 @@ else if( program.extraVerbose ) ryver.setVerbose( 2 );
  */
 
 // Basic plugins that are always loaded
-var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy', 'landing' ];
+var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy', 'landing', 'grouper' ];
 
 // Add plugins from command line parameter, if present
 if( program.plugins && program.plugins != '' ){
@@ -111,30 +111,15 @@ if( program.plugins && program.plugins != '' ){
 
 // Add plugin from "master" _info.yaml file
 
-// Try and read the master _info.yaml file
-fs.readFile( p.join( src, '_info.yaml'), function( err, info ){
+ryver.readConfig( src, function( err, config ){
+  if( err ) fatal( err, err.stack );
 
-  // If the file couldn't be read, then that's it -- skip to afterPluginListLoaded()
-  if( err ) return afterPluginListLoaded();
+  ryver.setConfig( config );
 
-  try {
-    firstInfo = yaml.safeLoad( info, { filename:  p.join( src, '_info.yaml') } );
-  } catch( e ) {
-    fatal( e, e.stack );
+  // Add plugins from the config file
+  if( config.plugins && config.plugins != '' ){
+    plugins = plugins.concat( config.plugins.split( ',' ) );
   }
-
-  // Add plugins from the first _info.yaml file
-  if( firstInfo.plugins && firstInfo.plugins != '' ){
-    plugins = plugins.concat( firstInfo.plugins.split( ',' ) );
-  }
-
-  // That's it: the list of plugins is final. Go to next stage.
-  afterPluginListLoaded();
-});
-
-3
-
-function afterPluginListLoaded(){
 
   // Load all plugins, which are the module named 'ryver' plus the plugin name
   plugins.forEach( function( plugin ){
@@ -148,7 +133,8 @@ function afterPluginListLoaded(){
     ryver.build( function( err ){
       if( err ) return fatal( err.message, err.stack );
 
-      process.exit();
+      // That's it: end of story.
+      //process.exit();
     });
   })
-}
+});
