@@ -52,7 +52,8 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Add beforeDelayedPostProcess and afterDelayedPostProcess events, and use them in sorting
   * [X] Make sure sorting of tags happens a the right step
 
-  * [ ] Write grouper to have list of 10 latest posts
+  * [X] Write grouper to have list of 10 latest posts
+  * [ ] Change variable names from "group" to "list"
   * [ ] Write grouper to write paginating file with list of entries
 
   * [ ] Write plugin that will page single-page output safely. MAYBE find a way to re-start filtering
@@ -496,8 +497,10 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
 
       function( err ){
 
+        if( err ) return cb( err );
+
         emitAndApplyEach( 'afterDelayedPostProcess', function( err ){
-          if( err ) return cb( null );
+          if( err ) return cb( err );
 
           cb( null );
         });
