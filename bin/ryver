@@ -102,7 +102,7 @@ else if( program.extraVerbose ) ryver.setVerbose( 2 );
  */
 
 // Basic plugins that are always loaded
-var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy', 'landing', 'grouper' ];
+var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy', 'landing', 'lister' ];
 
 // Add plugins from command line parameter, if present
 if( program.plugins && program.plugins != '' ){
