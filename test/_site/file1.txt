@@ -1,0 +1,13 @@
+<html>
+  <head>
+    <title></title>
+  </head>
+  <body>
+    <h1>Contents:</h1>
+    File 1
+[[testTag 1 2 3]] and then [[include blah.txt]] and [[testTag 4 5 6]] and that's it.
+
+This is the big test: , and again: 10
+
+  </body>
+</html>

@@ -52,9 +52,10 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Add beforeDelayedPostProcess and afterDelayedPostProcess events, and use them in sorting
   * [X] Make sure sorting of tags happens a the right step
 
-  * [X] Write grouper to have list of 10 latest posts
-  * [ ] Change variable names from "group" to "list"
-  * [ ] Write grouper to write paginating file with list of entries
+  * [X] Write lister to have list of 10 latest posts
+  * [X] Change variable names from "group" to "list"
+  * [X] Add before- and after- hooks, make frontmatter and lister use them to prevent pollution
+  * [ ] Write lister to write paginating file with list of entries
 
   * [ ] Write plugin that will page single-page output safely. MAYBE find a way to re-start filtering
         with the next filter in the list?
@@ -295,9 +296,45 @@ var collectFilters = exports.collectFilters = function( cb ){
       log( "Filter found and made available:", filter.name );
       processing.filters[ filter.name ] = filter.executor;
     });
-    cb( null );
+
+    log( "Collecting filter hooks")
+
+    processing.filterHooks = {}
+    eventEC.emitCollect( 'beforePreProcessFilters', function( err, beforePreProcessFilters ){
+      if( err ) return cb( err );
+      processing.filterHooks.beforePreProcessFilters = beforePreProcessFilters.onlyResults();
+
+      eventEC.emitCollect( 'afterPreProcessFilters', function( err, afterPreProcessFilters ){
+        if( err ) return cb( err );
+        processing.filterHooks.afterPreProcessFilters = afterPreProcessFilters.onlyResults();
+
+        eventEC.emitCollect( 'beforeFilters', function( err, beforeFilters) {
+          if( err ) return cb( err );
+          processing.filterHooks.beforeFilters = beforeFilters.onlyResults();
+
+          eventEC.emitCollect( 'afterFilters', function( err, afterFilters ){
+            if( err ) return cb( err );
+            processing.filterHooks.afterFilters = afterFilters.onlyResults();
+
+            eventEC.emitCollect( 'beforePostProcessFilters', function( err, beforePostProcessFilters ){
+              if( err ) return cb( err );
+              processing.filterHooks.beforePostProcessFilters = beforePostProcessFilters.onlyResults();
+
+              eventEC.emitCollect( 'afterPostProcessFilters', function( err, afterPostProcessFilters ){
+                if( err ) return cb( err );
+                processing.filterHooks.afterPostProcessFilters = afterPostProcessFilters.onlyResults();
+
+                cb( null );
+              });
+            });
+          });
+        });
+      });
+    });
   });
 }
+
+
 
 var filter = exports.filter = function( fileData, cb){
 
@@ -308,43 +345,67 @@ var filter = exports.filter = function( fileData, cb){
   else
     log( "No pre-process filters to apply" );
 
-  applyFilterList( preProcessFilters, fileData, function( err, fileData) {
+  applyFilterHooks( 'beforePreProcessFilters', fileData, function( err, fileData ){
     if( err ) return cb( err );
 
-    if( preProcessFilters != '' )
-      vlog( "After pre-process filters, contents are: ", trimFileData( fileData ) );
-
-    var preFilters = fileData.info.preFilters || '';
-    var filters = fileData.info.filters || '';
-    var postFilters = fileData.info.postFilters || '';
-
-    log( "About to apply pre-filters, filters and post-filters" );
-    if( preFilters != '' ) log( "Pre-filters: ", preFilters );
-    else log( "No pre-filters" );
-    if( filters != '' ) log( "Filters: ", filters );
-    else log( "No filters" );
-    if( postFilters != '' ) log( "Post-filters: ", postFilters );
-    else log( "No post-filters" );
-
-    applyFilterList( [ preFilters, filters, postFilters ], fileData, function( err, fileData) {
       if( err ) return cb( err );
+    applyFilterList( preProcessFilters, fileData, function( err, fileData ) {
 
-      vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
+      applyFilterHooks( 'afterPreProcessFilters', fileData, function( err ){
+        if( err ) return cb( err );
 
-      if( fileData.info.delayPostProcess ){
-        log( "The element has been marked for delayed postProcess, not running postProcessFilter for now" );
-        processing.toPostProcess.push( fileData );
-        return cb( null, fileData );
-      } else {
-        log( "Running postProcessFilters immediately" );
-        var postProcessFilters = fileData.info.postProcessFilters || '';
+        if( preProcessFilters != '' )
+          vlog( "After pre-process filters, contents are: ", trimFileData( fileData ) );
 
-        applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+        var preFilters = fileData.info.preFilters || '';
+        var filters = fileData.info.filters || '';
+        var postFilters = fileData.info.postFilters || '';
+
+        log( "About to apply pre-filters, filters and post-filters" );
+        if( preFilters != '' ) log( "Pre-filters: ", preFilters );
+        else log( "No pre-filters" );
+        if( filters != '' ) log( "Filters: ", filters );
+        else log( "No filters" );
+        if( postFilters != '' ) log( "Post-filters: ", postFilters );
+        else log( "No post-filters" );
+
+        applyFilterHooks( 'beforeFilters', fileData, function( err, fileData ){
           if( err ) return cb( err );
 
-          return cb( null, fileData );
+          applyFilterList( [ preFilters, filters, postFilters ], fileData, function( err, fileData ) {
+            if( err ) return cb( err );
+
+            vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
+
+            applyFilterHooks( 'afterFilters', fileData, function( err, fileData ){
+              if( err ) return cb( err );
+
+              if( fileData.system.delayPostProcess ){
+                log( "The element has been marked for delayed postProcess, not running postProcessFilter for now" );
+                processing.toPostProcess.push( fileData );
+                return cb( null, fileData );
+              } else {
+                log( "Running postProcessFilters immediately" );
+                var postProcessFilters = fileData.info.postProcessFilters || '';
+
+                applyFilterHooks( 'beforePostProcessFilters', fileData, function( err, fileData ){
+                  if( err ) return cb( err );
+
+                  applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+                    if( err ) return cb( err );
+
+                    applyFilterHooks( 'afterPostProcessFilters', fileData, function( err, fileData ){
+                      if( err ) return cb( err );
+
+                      return cb( null, fileData );
+                    });
+                  });
+                });
+              }
+            });
+          });
         });
-      }
+      });
     });
   });
 }
@@ -412,6 +473,33 @@ var applyFilterList = exports.applyFilterList = function( filterList, fileData, 
     cb( null, fileData );
   });
 }
+
+var applyFilterHooks = exports.applyFilterHooks = function( hookName, fileData, cb){
+
+  log( "Applying filters given by hook: ", hookName );
+
+  var hooks = processing.filterHooks[ hookName ];
+
+  if( ! hooks.length ){
+    log('No hooks registered for ', hookName );
+    return cb( null, fileData );
+  } else {
+    log("Hooks registered for ", hookName,":", hooks.length );
+  }
+
+  var toExecute = [ function( cb ){
+    return cb( null, fileData );
+
+  } ].concat( hooks );
+
+  async.waterfall( toExecute, function( err, fileData ){
+    if( err ) return cb( err );
+
+    cb( null, fileData );
+  });
+
+}
+
 
 var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt, fileContentsAsBuffer, info, cb ){
 
@@ -488,10 +576,18 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
         log( "Processing ", fileData.system.fileName + fileData.system.fileExt );
         log( "Running postProcessFilters:", postProcessFilters );
 
-        applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+        applyFilterHooks( 'beforePostProcessFilters', fileData, function( err, fileData ){
           if( err ) return cb( err );
 
-          cb( null );
+          applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+            if( err ) return cb( err );
+
+            applyFilterHooks( 'afterPostProcessFilters', fileData, function( err, fileData ){
+              if( err ) return cb( err );
+
+              cb( null );
+            });
+          });
         });
       },
 
