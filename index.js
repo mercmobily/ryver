@@ -55,6 +55,9 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Write lister to have list of 10 latest posts
   * [X] Change variable names from "group" to "list"
   * [X] Add before- and after- hooks, make frontmatter and lister use them to prevent pollution
+  * [X] Check that plugins are in the right spot (config file) and are _overwritten_
+  * [ ] Check that I actually need to return fileInfo all the bloody time in filtering
+
   * [ ] Write lister to write paginating file with list of entries
 
   * [ ] Write plugin that will page single-page output safely. MAYBE find a way to re-start filtering

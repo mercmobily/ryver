@@ -101,24 +101,25 @@ else if( program.extraVerbose ) ryver.setVerbose( 2 );
  * Load plugins.
  */
 
-// Basic plugins that are always loaded
+// Default plugins
 var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy', 'landing', 'lister' ];
-
-// Add plugins from command line parameter, if present
-if( program.plugins && program.plugins != '' ){
-  plugins = plugins.concat( program.plugins.split( ',' ) );
-}
 
 // Add plugin from "master" _info.yaml file
 
 ryver.readConfig( src, function( err, config ){
   if( err ) fatal( err, err.stack );
 
+  // Set the configuration file variable
   ryver.setConfig( config );
 
-  // Add plugins from the config file
-  if( config.plugins && config.plugins != '' ){
-    plugins = plugins.concat( config.plugins.split( ',' ) );
+  // Take plugins from the command line (which takes precedence) or the config
+  // file (as a last resort to change the default list);
+  if( program.plugins && program.plugins != '' ){
+    plugins = program.plugins.split( ',' );
+  } else {
+    if( config.plugins && config.plugins != '' ){
+      plugins = config.plugins.split( ',' );
+    }
   }
 
   // Load all plugins, which are the module named 'ryver' plus the plugin name
