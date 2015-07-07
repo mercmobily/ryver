@@ -56,7 +56,7 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Change variable names from "group" to "list"
   * [X] Add before- and after- hooks, make frontmatter and lister use them to prevent pollution
   * [X] Check that plugins are in the right spot (config file) and are _overwritten_
-  * [ ] Check that I actually need to return fileInfo all the bloody time in filtering
+  * [X] Check that I actually need to return fileInfo all the bloody time in filtering
 
   * [ ] Write lister to write paginating file with list of entries
 
@@ -73,8 +73,8 @@ STAND BY:
   * [ ] Implement a liquid template to include a file and apply filtering, maybe extend `include`
         https://github.com/leizongmin/tinyliquid/issues/33
 */
-
 // Private module variables
+
 
 var processing = {
   filters: {},
@@ -88,6 +88,7 @@ var processing = {
 
 // Private module methods
 
+/*
 function emitAndApplyEach( eventName, cb ){
 
   eventEC.emitCollect( eventName, function( err, ret ){
@@ -101,7 +102,7 @@ function emitAndApplyEach( eventName, cb ){
     });
   });
 }
-
+*/
 
 // Public module variables
 
@@ -327,7 +328,16 @@ var collectFilters = exports.collectFilters = function( cb ){
                 if( err ) return cb( err );
                 processing.filterHooks.afterPostProcessFilters = afterPostProcessFilters.onlyResults();
 
-                cb( null );
+                eventEC.emitCollect( 'beforeDelayedPostProcess', function( err, beforeDelayedPostProcess ){
+                  if( err ) return cb( err );
+                  processing.filterHooks.beforeDelayedPostProcess = beforeDelayedPostProcess.onlyResults();
+
+                  eventEC.emitCollect( 'afterDelayedPostProcess', function( err, afterDelayedPostProcess ){
+                    if( err ) return cb( err );
+                    processing.filterHooks.afterDelayedPostProcess = afterDelayedPostProcess.onlyResults();
+                    cb( null );
+                  });
+                });
               });
             });
           });
@@ -348,11 +358,11 @@ var filter = exports.filter = function( fileData, cb){
   else
     log( "No pre-process filters to apply" );
 
-  applyFilterHooks( 'beforePreProcessFilters', fileData, function( err, fileData ){
+  applyFilterHooks( 'beforePreProcessFilters', fileData, function( err ){
     if( err ) return cb( err );
 
       if( err ) return cb( err );
-    applyFilterList( preProcessFilters, fileData, function( err, fileData ) {
+    applyFilterList( preProcessFilters, fileData, function( err ) {
 
       applyFilterHooks( 'afterPreProcessFilters', fileData, function( err ){
         if( err ) return cb( err );
@@ -372,15 +382,15 @@ var filter = exports.filter = function( fileData, cb){
         if( postFilters != '' ) log( "Post-filters: ", postFilters );
         else log( "No post-filters" );
 
-        applyFilterHooks( 'beforeFilters', fileData, function( err, fileData ){
+        applyFilterHooks( 'beforeFilters', fileData, function( err ){
           if( err ) return cb( err );
 
-          applyFilterList( [ preFilters, filters, postFilters ], fileData, function( err, fileData ) {
+          applyFilterList( [ preFilters, filters, postFilters ], fileData, function( err ) {
             if( err ) return cb( err );
 
             vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
 
-            applyFilterHooks( 'afterFilters', fileData, function( err, fileData ){
+            applyFilterHooks( 'afterFilters', fileData, function( err ){
               if( err ) return cb( err );
 
               if( fileData.system.delayPostProcess ){
@@ -391,13 +401,13 @@ var filter = exports.filter = function( fileData, cb){
                 log( "Running postProcessFilters immediately" );
                 var postProcessFilters = fileData.info.postProcessFilters || '';
 
-                applyFilterHooks( 'beforePostProcessFilters', fileData, function( err, fileData ){
+                applyFilterHooks( 'beforePostProcessFilters', fileData, function( err ){
                   if( err ) return cb( err );
 
-                  applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+                  applyFilterList( postProcessFilters, fileData, function( err ) {
                     if( err ) return cb( err );
 
-                    applyFilterHooks( 'afterPostProcessFilters', fileData, function( err, fileData ){
+                    applyFilterHooks( 'afterPostProcessFilters', fileData, function( err ){
                       if( err ) return cb( err );
 
                       return cb( null, fileData );
@@ -446,34 +456,29 @@ var applyFilterList = exports.applyFilterList = function( filterList, fileData, 
       return cb( new Error("Filter " + filterName + " invalid!") );
 
     // All good: add it, and mark it as already used
-    functions.push( function( fileData, cb ){
+    functions.push( function( cb ){
 
       log( "Applying filter", filterName );
 
       // Check that the filter hasn't already been applied
       if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
         log( "Filter was already applied:", filterName );
-        return cb( null, fileData );
+        return cb( null );
       }
       processing.filters[ filterName ].call( this, fileData, function( err ){
         if( err ) return cb( err );
 
         vlog( "fileData after filtering is:", trimFileData( fileData ) );
         fileData.system.processedBy.push( filterName );
-        cb( null, fileData  );
+        cb( null );
       });
     });
-
   });
-  var toExecute = [ function( cb ){
-    return cb( null, fileData );
 
-  } ].concat( functions );
-
-  async.waterfall( toExecute, function( err, fileData){
+  async.series( functions, function( err ){
     if( err ) return cb( err );
 
-    cb( null, fileData );
+    cb( null );
   });
 }
 
@@ -482,25 +487,37 @@ var applyFilterHooks = exports.applyFilterHooks = function( hookName, fileData, 
   log( "Applying filters given by hook: ", hookName );
 
   var hooks = processing.filterHooks[ hookName ];
+  var functions = [];
 
   if( ! hooks.length ){
     log('No hooks registered for ', hookName );
-    return cb( null, fileData );
+    return cb( null );
   } else {
     log("Hooks registered for ", hookName,":", hooks.length );
   }
 
-  var toExecute = [ function( cb ){
-    return cb( null, fileData );
+  hooks.forEach( function( hook ){
 
-  } ].concat( hooks );
+    // All good: add it, and mark it as already used
+    functions.push( function( cb ){
 
-  async.waterfall( toExecute, function( err, fileData ){
-    if( err ) return cb( err );
+      console.log( 'HOOK', hook );
+      log( "Applying hook", hook.name );
 
-    cb( null, fileData );
+      hook.executor.call( this, fileData, function( err ){
+        if( err ) return cb( err );
+
+        vlog( "fileData after hook is:", trimFileData( fileData ) );
+        cb( null );
+      });
+    });
+
+    async.series( functions, function( err ){
+      if( err ) return cb( err );
+
+      cb( null );
+    });
   });
-
 }
 
 
@@ -568,7 +585,7 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
   if( processing.toPostProcess.length !== 0 )
     log( "There are some files that had delayPostProcess set to true. Processing them now" );
 
-  emitAndApplyEach( 'beforeDelayedPostProcess', function( err ){
+  applyFilterHooks( 'beforeDelayedPostProcess', function( err ){
     if( err ) return cb( err );
 
     async.eachSeries(
@@ -579,13 +596,13 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
         log( "Processing ", fileData.system.fileName + fileData.system.fileExt );
         log( "Running postProcessFilters:", postProcessFilters );
 
-        applyFilterHooks( 'beforePostProcessFilters', fileData, function( err, fileData ){
+        applyFilterHooks( 'beforePostProcessFilters', fileData, function( err ){
           if( err ) return cb( err );
 
-          applyFilterList( postProcessFilters, fileData, function( err, fileData ) {
+          applyFilterList( postProcessFilters, fileData, function( err ) {
             if( err ) return cb( err );
 
-            applyFilterHooks( 'afterPostProcessFilters', fileData, function( err, fileData ){
+            applyFilterHooks( 'afterPostProcessFilters', fileData, function( err ){
               if( err ) return cb( err );
 
               cb( null );
@@ -598,7 +615,7 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
 
         if( err ) return cb( err );
 
-        emitAndApplyEach( 'afterDelayedPostProcess', function( err ){
+        applyFilterHooks( 'afterDelayedPostProcess', function( err ){
           if( err ) return cb( err );
 
           cb( null );
@@ -614,8 +631,8 @@ var build = exports.build = function( dirPath, passedInfo, cb ){
   // This function only works if process.src and process.dst are set
   if( getSrc() === null )
     return cb( new Error("You must set the source directory first with ryver.setSrc()"));
-
   if( getDst() === null )
+
     return cb( new Error("You must set the destination directory first with ryver.setDst()"));
 
   var mainCycle = false;
