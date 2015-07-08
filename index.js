@@ -59,12 +59,14 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Check that I actually need to return fileInfo all the bloody time in filtering
 
   * [ ] Write lister to write paginating file with list of entries
-
   * [ ] Write plugin that will page single-page output safely. MAYBE find a way to re-start filtering
         with the next filter in the list?
+  * [ ] Create liquid filters and tags
 
   * [ ] Write "serve" command that will serve a file structore
   * [ ] Write "observe" command that will observe file system and re-filter files as needed
+
+
   * [ ] Document everything properly on GitHub
   * [ ] Write test file that needs to be rendered properly, use result as test
   * [ ] At least make a simple basic web site using it
@@ -88,23 +90,11 @@ var processing = {
 
 // Private module methods
 
-/*
-function emitAndApplyEach( eventName, cb ){
-
-  eventEC.emitCollect( eventName, function( err, ret ){
-    if( err ) return cb( err );
-
-    console.log("Event: ", eventName, "Number of functions to apply:", ret.onlyResults().length );
-    async.applyEach( ret.onlyResults(), function( err ){
-      if( err ) return cb( err );
-
-      cb( null );
-    });
-  });
-}
-*/
+/* none */
 
 // Public module variables
+
+/* none */
 
 // Public module methods
 
@@ -132,12 +122,12 @@ var setSrc = exports.setSrc = function( src ){
   processing.src = src;
 }
 
-var setDst = exports.setDst = function( dst ){
-  processing.dst = dst;
-}
-
 var getDst = exports.getDst = function(){
   return processing.dst;
+}
+
+var setDst = exports.setDst = function( dst ){
+  processing.dst = dst;
 }
 
 var getFilters = exports.getFilters = function(){
@@ -149,7 +139,7 @@ var isDir = exports.isDir = function( fullFilePath, cb ){
   fs.lstat( fullFilePath, function( err, fileStat ){
     if( err ) return cb( err );
 
-    // It's a directory: rerun the whole thing in that directory
+    // It's a directory: return true
     if( fileStat.isDirectory() ) return cb( null, true );
 
     return cb( null, false );
@@ -161,7 +151,7 @@ var isFile = exports.isFile = function( fullFilePath, cb ){
   fs.lstat( fullFilePath, function( err, fileStat ){
     if( err ) return cb( err );
 
-    // It's a directory: rerun the whole thing in that directory
+    // It's a file: return true
     if( fileStat.isFile() ) return cb( null, true );
 
     return cb( null, false );
@@ -169,12 +159,14 @@ var isFile = exports.isFile = function( fullFilePath, cb ){
 }
 
 
+// Normal logging: log with levels 1 and 2
 var log = exports.log = function( ){
   if( processing.verbose == 1 || processing.verbose == 2 ){
     console.log.apply( this, arguments );
   }
 }
 
+// Very verbose logging: only log with level 2
 var vlog = exports.vlog = function( ){
   if( processing.verbose == 2 ){
     console.log.apply( this, arguments );
@@ -182,6 +174,7 @@ var vlog = exports.vlog = function( ){
 }
 
 
+// Read file, but trying with a backup path if the "main" one isn't there.
 var readFile = exports.readFile = function( path, backupPath, fileNameAndExt, cb ){
 
   var usedBackup = false;
@@ -210,9 +203,6 @@ var readFile = exports.readFile = function( path, backupPath, fileNameAndExt, cb
       // At this point, usedBackup and fileContentsAsBuffer
       // are all set and good
 
-      // Using this function here in case I will need to do more
-      // here later
-
       cb( null, fileContentsAsBuffer, usedBackup );
 
     }
@@ -223,6 +213,7 @@ var readFile = exports.readFile = function( path, backupPath, fileNameAndExt, cb
 var trimFileData = exports.trimFileData = function( fileData ){
   var newFileData = {};
 
+  // Copy over everything except `initialContents`
   for( var k in fileData ){
 
     // Needs to be own property
@@ -235,6 +226,7 @@ var trimFileData = exports.trimFileData = function( fileData ){
     newFileData[ k ] = fileData[ k ];
   }
 
+  // If it's not text, then chop `contents` away too
   if( fileData.system.mimetype.split('/')[0] !== 'text'){
     newFileData.contents = "NON TEXT";
   }
@@ -245,6 +237,7 @@ var trimFileData = exports.trimFileData = function( fileData ){
 
 // http://stackoverflow.com/a/728694/829771
 var cloneObject = exports.cloneObject = function( obj ) {
+
     // Handle the 3 simple types, and null or undefined
     if (null == obj || "object" != typeof obj) return obj;
 
@@ -277,6 +270,7 @@ var cloneObject = exports.cloneObject = function( obj ) {
 }
 
 
+// Enrich an object passing a list of extra paths
 var enrichObject = exports.enrichObject = function( b, o ){
   var deepObj = new DO( b );
   for( var k in o ){
@@ -284,13 +278,17 @@ var enrichObject = exports.enrichObject = function( b, o ){
   }
 }
 
+// Set an object's value saving historical values in property + '_history'
 var setSystemData = exports.setSystemData = function( system, key, value ) {
   system[ key + '_history' ] = system[ key + '_history' ] || [];
   system[ key + '_history' ].push( system[ key ] );
   system[ key ] = value;
 }
 
-var collectFilters = exports.collectFilters = function( cb ){
+// Pre-collect all filters and hooks and store them in processing.filterHooks
+// and processing.filters, so that they are readily available when needed
+// (without re-emitting etc.)
+var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
 
   log( "Collecting filters")
   eventEC.emitCollect( 'filter', function( err, filters ){
@@ -304,51 +302,34 @@ var collectFilters = exports.collectFilters = function( cb ){
     log( "Collecting filter hooks")
 
     processing.filterHooks = {}
-    eventEC.emitCollect( 'beforePreProcessFilters', function( err, beforePreProcessFilters ){
-      if( err ) return cb( err );
-      processing.filterHooks.beforePreProcessFilters = beforePreProcessFilters.onlyResults();
-
-      eventEC.emitCollect( 'afterPreProcessFilters', function( err, afterPreProcessFilters ){
-        if( err ) return cb( err );
-        processing.filterHooks.afterPreProcessFilters = afterPreProcessFilters.onlyResults();
-
-        eventEC.emitCollect( 'beforeFilters', function( err, beforeFilters) {
+    async.eachSeries(
+      [
+        'beforePreProcessFilters',
+        'afterPreProcessFilters',
+        'beforeFilters',
+        'afterFilters',
+        'beforePostProcessFilters',
+        'afterPostProcessFilters',
+        'beforeDelayedPostProcess',
+        'afterDelayedPostProcess',
+      ],
+      function( item, cb ){
+        eventEC.emitCollect( item, function( err, itemResult ){
           if( err ) return cb( err );
-          processing.filterHooks.beforeFilters = beforeFilters.onlyResults();
 
-          eventEC.emitCollect( 'afterFilters', function( err, afterFilters ){
-            if( err ) return cb( err );
-            processing.filterHooks.afterFilters = afterFilters.onlyResults();
-
-            eventEC.emitCollect( 'beforePostProcessFilters', function( err, beforePostProcessFilters ){
-              if( err ) return cb( err );
-              processing.filterHooks.beforePostProcessFilters = beforePostProcessFilters.onlyResults();
-
-              eventEC.emitCollect( 'afterPostProcessFilters', function( err, afterPostProcessFilters ){
-                if( err ) return cb( err );
-                processing.filterHooks.afterPostProcessFilters = afterPostProcessFilters.onlyResults();
-
-                eventEC.emitCollect( 'beforeDelayedPostProcess', function( err, beforeDelayedPostProcess ){
-                  if( err ) return cb( err );
-                  processing.filterHooks.beforeDelayedPostProcess = beforeDelayedPostProcess.onlyResults();
-
-                  eventEC.emitCollect( 'afterDelayedPostProcess', function( err, afterDelayedPostProcess ){
-                    if( err ) return cb( err );
-                    processing.filterHooks.afterDelayedPostProcess = afterDelayedPostProcess.onlyResults();
-                    cb( null );
-                  });
-                });
-              });
-            });
-          });
+          processing.filterHooks[ item ] = itemResult.onlyResults();
+          cb( null );
         });
-      });
-    });
+      },
+      function( err ){
+        if( err ) return cb( err );
+        cb( null );
+      }
+    );
   });
 }
 
-
-
+// Apply _full_ filters and hooks to fileData
 var filter = exports.filter = function( fileData, cb){
 
   var preProcessFilters = fileData.info.preProcessFilters || '';
@@ -361,8 +342,8 @@ var filter = exports.filter = function( fileData, cb){
   applyFilterHooks( 'beforePreProcessFilters', fileData, function( err ){
     if( err ) return cb( err );
 
-      if( err ) return cb( err );
     applyFilterList( preProcessFilters, fileData, function( err ) {
+      if( err ) return cb( err );
 
       applyFilterHooks( 'afterPreProcessFilters', fileData, function( err ){
         if( err ) return cb( err );
@@ -423,6 +404,58 @@ var filter = exports.filter = function( fileData, cb){
   });
 }
 
+
+// Apply filter postProcess to items in processing.toPostProcess
+// (their processing was halted at the hook `afterFilter` because
+// `delayPostProcess` was set to `true`).
+var filterDelayedItems = exports.filterDelayedItems = function( cb ){
+
+  if( processing.toPostProcess.length !== 0 )
+    log( "There are some files that had delayPostProcess set to true. Processing them now" );
+
+  applyFilterHooks( 'beforeDelayedPostProcess', function( err ){
+    if( err ) return cb( err );
+
+    async.eachSeries(
+      processing.toPostProcess,
+
+      function( fileData, cb ){
+        var postProcessFilters = fileData.info.postProcessFilters || '';
+        log( "Processing ", fileData.system.fileName + fileData.system.fileExt );
+        log( "Running postProcessFilters:", postProcessFilters );
+
+        applyFilterHooks( 'beforePostProcessFilters', fileData, function( err ){
+          if( err ) return cb( err );
+
+          applyFilterList( postProcessFilters, fileData, function( err ) {
+            if( err ) return cb( err );
+
+            applyFilterHooks( 'afterPostProcessFilters', fileData, function( err ){
+              if( err ) return cb( err );
+
+              cb( null );
+            });
+          });
+        });
+      },
+
+      function( err ){
+
+        if( err ) return cb( err );
+
+        applyFilterHooks( 'afterDelayedPostProcess', function( err ){
+          if( err ) return cb( err );
+
+          cb( null );
+        });
+      }
+    );
+  });
+}
+
+
+// Apply a list of filters. Here, fiterList is either an array of strings, or a
+// string and EACH string is a comma-separated list of filters to apply
 var applyFilterList = exports.applyFilterList = function( filterList, fileData, cb){
 
   var list = [];
@@ -482,6 +515,7 @@ var applyFilterList = exports.applyFilterList = function( filterList, fileData, 
   });
 }
 
+// Apply all hook functions associated to hook `hookName`
 var applyFilterHooks = exports.applyFilterHooks = function( hookName, fileData, cb){
 
   log( "Applying filters given by hook: ", hookName );
@@ -521,6 +555,8 @@ var applyFilterHooks = exports.applyFilterHooks = function( hookName, fileData, 
 }
 
 
+// Make a fileData object. If fileContentsAsBuffer isn't set, it will
+// load it from filePath + fileName + fileExt
 var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt, fileContentsAsBuffer, info, cb ){
 
   var fullFilePath = p.join( filePath, fileName + fileExt );
@@ -563,6 +599,7 @@ var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt,
   }
 }
 
+// Read and parse config file
 var readConfig = exports.readConfig = function( dirPath, cb ){
 
   // Try and read the master _info.yaml file
@@ -579,53 +616,9 @@ var readConfig = exports.readConfig = function( dirPath, cb ){
   });
 }
 
-
-var filterDelayedItems = exports.filterDelayedItems = function( cb ){
-
-  if( processing.toPostProcess.length !== 0 )
-    log( "There are some files that had delayPostProcess set to true. Processing them now" );
-
-  applyFilterHooks( 'beforeDelayedPostProcess', function( err ){
-    if( err ) return cb( err );
-
-    async.eachSeries(
-      processing.toPostProcess,
-
-      function( fileData, cb ){
-        var postProcessFilters = fileData.info.postProcessFilters || '';
-        log( "Processing ", fileData.system.fileName + fileData.system.fileExt );
-        log( "Running postProcessFilters:", postProcessFilters );
-
-        applyFilterHooks( 'beforePostProcessFilters', fileData, function( err ){
-          if( err ) return cb( err );
-
-          applyFilterList( postProcessFilters, fileData, function( err ) {
-            if( err ) return cb( err );
-
-            applyFilterHooks( 'afterPostProcessFilters', fileData, function( err ){
-              if( err ) return cb( err );
-
-              cb( null );
-            });
-          });
-        });
-      },
-
-      function( err ){
-
-        if( err ) return cb( err );
-
-        applyFilterHooks( 'afterDelayedPostProcess', function( err ){
-          if( err ) return cb( err );
-
-          cb( null );
-        });
-      }
-    );
-  });
-}
-
-
+// Main "build" function that will recursively go through
+// dirPath and filter each encountered file. It will also run
+// `filterDelayedItems()` once all files have been filtered
 var build = exports.build = function( dirPath, passedInfo, cb ){
 
   // This function only works if process.src and process.dst are set
