@@ -127,7 +127,10 @@ ryver.readConfig( src, function( err, config ){
     require( 'ryver-' + plugin );
   });
 
-  ryver.collectFilters( function( err ){
+  // This will enrich ryver's internal variables
+  // to pre-store the full list of all available filters
+  // as well as all available hooks
+  ryver.collectFiltersAndHooks( function( err ){
     if( err ) return fatal( err.message, err.stack );
 
     // Let the fun begin!
