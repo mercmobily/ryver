@@ -58,6 +58,7 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Check that plugins are in the right spot (config file) and are _overwritten_
   * [X] Check that I actually need to return fileInfo all the bloody time in filtering
 
+  * [X] Rewrite filtering infrastructure so that a filter can "fork" filtering whenever
   * [ ] Write lister to write paginating file with list of entries
   * [ ] Write plugin that will page single-page output safely. MAYBE find a way to re-start filtering
         with the next filter in the list?
@@ -157,7 +158,6 @@ var isFile = exports.isFile = function( fullFilePath, cb ){
     return cb( null, false );
   });
 }
-
 
 // Normal logging: log with levels 1 and 2
 var log = exports.log = function( ){
@@ -314,10 +314,14 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
         'afterDelayedPostProcess',
       ],
       function( item, cb ){
+        log( "Collecting hooks for ", item );
         eventEC.emitCollect( item, function( err, itemResult ){
           if( err ) return cb( err );
 
           processing.filterHooks[ item ] = itemResult.onlyResults();
+          log( "Function added to the hook:",  processing.filterHooks[ item ].length );
+          vlog( "Functions added:",  processing.filterHooks[ item ] );
+
           cb( null );
         });
       },
@@ -334,8 +338,11 @@ var addHooksToList = function( list, hookName, front ){
 
   var hooks = processing.filterHooks[ hookName ];
 
+  log( "Adding hooks to filtersPipeline for hook", hookName );
   if( ! hooks.length ){
-    log('No hooks registered for ', hookName );
+    log( 'No hooks registered for ', hookName );
+    log( 'Adding dummy hook...' );
+    list.push( { type: 'hook', name: 'dummy', hookName: hookName, func: function( o, cb ){ cb( null ); } });
     return;
   } else {
     log("Hooks registered for ", hookName,":", hooks.length );
@@ -343,15 +350,19 @@ var addHooksToList = function( list, hookName, front ){
 
   hooks.forEach( function( hook ){
     if( front ){
-      list.unshift( { type: 'hook', name: hook.name, func: hook.executor } );
-    } else {
-      list.push( { type: 'hook', name: hook.name, func: hook.executor } );
+      log( "Adding function to the top of the list" );
+      list.unshift( { type: 'hook', name: hook.name, func: hook.executor, hookName: hookName } );
+    }  else {
+      log( "Adding function to the bottom of the list" );
+      list.push( { type: 'hook', name: hook.name, func: hook.executor, hookName: hookName } );
     }
   });
 }
 
 
 var addFiltersToList = function( list, commaSeparatedFilters ){
+
+  log( "Adding filters to filtersPipeline:", commaSeparatedFilters );
 
   // Make up the list as array, and give up if it was empty
   // Trim spaces, and filter out empty ones
@@ -363,6 +374,8 @@ var addFiltersToList = function( list, commaSeparatedFilters ){
   }).forEach( function( filterName ){
     list.push( { type: 'filter', name: filterName, func: processing.filters[ filterName ] } );
   });
+  //vlog("List is now:" );
+  //vlog( list );
 }
 
 
@@ -380,25 +393,26 @@ var makeFilterAndHookList = function( fileData, cb ){
   var postProcessFilters = fileData.info.postProcessFilters || '';
 
   // preProcessFilters and surrounding hooks
-  addHooksToList( list, 'beforePreProcessFilters' );
-  addFiltersToList( list, preProcessFilters );
-  addHooksToList( list, 'afterPreProcessFilters' );
+  //addHooksToList( list, 'beforePreProcessFilters' );
+  vlog( "preProcessFilters..." ); addFiltersToList( list, preProcessFilters );
+  vlog( "afterProcessFilters..." ); addHooksToList( list, 'afterPreProcessFilters' );
 
   // pre,-,post filters and surrounding hooks
-  addHooksToList( list, 'beforeFilters' );
-  addFiltersToList( list, preFilters );
-  addFiltersToList( list, filters );
-  addFiltersToList( list, postFilters );
-  addHooksToList( list, 'afterFilters' );
+  vlog( "beforeFilters..." ); addHooksToList( list, 'beforeFilters' );
+  vlog( "preFilters..." ); addFiltersToList( list, preFilters );
+  vlog( "filters..." ); addFiltersToList( list, filters );
+  vlog( "postFilters..." ); addFiltersToList( list, postFilters );
+  vlog( "afterFilters..." ); addHooksToList( list, 'afterFilters' );
 
   // When `fileData.info.delayPostProcess` is `true`, processing will stop here
 
   // postProcessFilters and surrounding hooks
-  addHooksToList( list, 'beforePostProcessFilters' );
-  addFiltersToList( list, postProcessFilters );
-  addHooksToList( list, 'afterPostProcessFilters' );
+  vlog( "beforePostProcessFilters..." ); addHooksToList( list, 'beforePostProcessFilters' );
+  vlog( "postProcessFilters..." ); addFiltersToList( list, postProcessFilters );
+  vlog( "afterPostProcessFilters..." ); addHooksToList( list, 'afterPostProcessFilters' );
 
-  log("Log list:", list );
+  log("FINAL hook/filter list:" );
+  log( list );
   return cb( null, list );
 }
 
@@ -448,6 +462,9 @@ var filter = exports.filter = function( fileData, cb){
 
   function goThroughPipeline(){
 
+    log( "Putting file through filters and hooks now..." );
+    vlog( fileData.filtersPipeline );
+
     async.whilst(
 
       function() { return fileData.filtersPipeline.length; },
@@ -460,7 +477,7 @@ var filter = exports.filter = function( fileData, cb){
         // If the next element is the `beforePostProcessFilters` hook AND
         // system.delayPostProcess is true AND system.inDelayedPostProcess if false,
         // then it's time to quit -- even before getting the element out
-        if( list[ 0 ].type == 'hook' && list[ 0 ].name == 'beforePostProcessFilters' ){
+        if( list[ 0 ].type == 'hook' && list[ 0 ].hookName == 'beforePostProcessFilters' ){
           if( fileData.system.delayPostProcess ){
 
             if( ! fileData.system.inDelayedPostProcess ){
@@ -477,6 +494,9 @@ var filter = exports.filter = function( fileData, cb){
               // This will ensure that the `delayPostProcess` flag won't work next time
               fileData.system.inDelayedPostProcess = true;
 
+              log("Hook/filter list (will be executed later):" );
+              log( list );
+
               return cb( 'delayed' );
             } else {
               log("Postprocessing was delayed and was resumed, continuing");
@@ -488,7 +508,10 @@ var filter = exports.filter = function( fileData, cb){
 
         var item = list.shift();
 
-        log( "Applying " + item.type + ":", item.name );
+        if( item.name == 'dummy' )
+          log ("Faking applying ", item.name, item.hookName );
+        else
+          log( "\n.........Applying " + item.type + ":", item.name );
 
         if( item.type === 'filter' ){
 
@@ -505,13 +528,12 @@ var filter = exports.filter = function( fileData, cb){
         item.func.call( this, fileData, function( err ){
           if( err ) return cb( err );
 
-          vlog( "fileData after " + item.type + " is:", trimFileData( fileData ) );
+          if( item.name != 'dummy')
+            vlog( "fileData after " + item.type + " is:", trimFileData( fileData ) );
 
           // Add the filter to the `processedBy` list, which is a nice log and
           // it's used to avoid double-filtering
           if( item.type == 'filter' ) fileData.system.processedBy.push( item.name );
-
-          vlog( "fileData after hook is:", trimFileData( fileData ) );
 
           // Check if the cycle should be interrupted
           if( fileData.system.stopFiltering ) return cb( 'stopped' );
@@ -728,11 +750,9 @@ var build = exports.build = function( dirPath, passedInfo, cb ){
         function( err ){
           if( err ) return cb( err );
 
-          console.log("mainCycle:", mainCycle );
-
           if( ! mainCycle ) return cb( null );
 
-          log( "******** THE END*************************************************" );
+          log( "\n******** THE END -- NOW FILTERING DELAYED ITEMS *********************\n" );
 
           // At this point, we ought to process all the items that reused to get processed
           // and are now in processing.toPostProcess
