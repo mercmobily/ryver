@@ -329,79 +329,207 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
   });
 }
 
-// Apply _full_ filters and hooks to fileData
+
+var addHooksToList = function( list, hookName, front ){
+
+  var hooks = processing.filterHooks[ hookName ];
+
+  if( ! hooks.length ){
+    log('No hooks registered for ', hookName );
+    return;
+  } else {
+    log("Hooks registered for ", hookName,":", hooks.length );
+  }
+
+  hooks.forEach( function( hook ){
+    if( front ){
+      list.unshift( { type: 'hook', name: hook.name, func: hook.executor } );
+    } else {
+      list.push( { type: 'hook', name: hook.name, func: hook.executor } );
+    }
+  });
+}
+
+
+var addFiltersToList = function( list, commaSeparatedFilters ){
+
+  // Make up the list as array, and give up if it was empty
+  // Trim spaces, and filter out empty ones
+  var l = commaSeparatedFilters.split(',').map( function( item ) {
+    return item.replace(/ /g, '' );
+  }).filter( function( item ){
+    if( item === '' ) return false;
+    return true;
+  }).forEach( function( filterName ){
+    list.push( { type: 'filter', name: filterName, func: processing.filters[ filterName ] } );
+  });
+}
+
+
+
+// Make the array with the list of filters to be applied to the file
+var makeFilterAndHookList = function( fileData, cb ){
+
+  var list = [];
+
+  // Make up defaults, empty if needed
+  var preProcessFilters = fileData.info.preProcessFilters || '';
+  var preFilters = fileData.info.preFilters || '';
+  var filters = fileData.info.filters || '';
+  var postFilters = fileData.info.postFilters || '';
+  var postProcessFilters = fileData.info.postProcessFilters || '';
+
+  // preProcessFilters and surrounding hooks
+  addHooksToList( list, 'beforePreProcessFilters' );
+  addFiltersToList( list, preProcessFilters );
+  addHooksToList( list, 'afterPreProcessFilters' );
+
+  // pre,-,post filters and surrounding hooks
+  addHooksToList( list, 'beforeFilters' );
+  addFiltersToList( list, preFilters );
+  addFiltersToList( list, filters );
+  addFiltersToList( list, postFilters );
+  addHooksToList( list, 'afterFilters' );
+
+  // When `fileData.info.delayPostProcess` is `true`, processing will stop here
+
+  // postProcessFilters and surrounding hooks
+  addHooksToList( list, 'beforePostProcessFilters' );
+  addFiltersToList( list, postProcessFilters );
+  addHooksToList( list, 'afterPostProcessFilters' );
+
+  log("Log list:", list );
+  return cb( null, list );
+}
+
+// Apply filters and hooks to fileData
+// There are three things to remember and consider:
+// 1) hooks in `beforePreProcessFilters` need to be able to change filters in
+//    fileData.info. So, `beforePreProcessFilters` hooks are injected into the
+//    filters/hooks pipeline,  _before_ the pipeline is properly created
+// 2) If `system.stopFiltering` is set at any point, filtering will stop end of story
+// 3) If `system.delayPostProcess` is set, processing will stop at
+//    `beforePostProcessFilters` (unless `system.inDelayedPostProcess` is true)
 var filter = exports.filter = function( fileData, cb){
 
-  var preProcessFilters = fileData.info.preProcessFilters || '';
+  // If filtering was stopped, there is no point in doing _anything_
+  if( fileData.system.stopFiltering ){
+    log( "Filtering stopped because of stopFiltering" );
+    return cb( null );
+  }
 
-  if( preProcessFilters != '' )
-    log( "About to apply pre-process filters: ",preProcessFilters );
-  else
-    log( "No pre-process filters to apply" );
+  // If the pipeline is already there, simply go through it
+  // This is used when this function is run in delayedPostProcess
+  if( fileData.filtersPipeline ){
+    goThroughPipeline();
+  } else {
 
-  applyFilterHooks( 'beforePreProcessFilters', fileData, function( err ){
-    if( err ) return cb( err );
+    // First of all, add the `beforePreProcessFilters` to the pipeline
+    // and filter file with *that*
+    fileData.filtersPipeline = [];
+    addHooksToList( fileData.filtersPipeline, 'beforePreProcessFilters' );
 
-    applyFilterList( preProcessFilters, fileData, function( err ) {
+    // At this point, the beforePreProcessFilters, which might change
+    // the filter attributes in fileData, is set
+    filter( fileData, function( err ){
+      if( err === 'stopped' ) return cb( 'stopped' );
       if( err ) return cb( err );
 
-      applyFilterHooks( 'afterPreProcessFilters', fileData, function( err ){
+      // At this point, it will add more entries to the pipeline (which
+      // won't include beforePreProcessFlters) and will go through it
+      makeFilterAndHookList( fileData, function( err, r ){
         if( err ) return cb( err );
 
-        if( preProcessFilters != '' )
-          vlog( "After pre-process filters, contents are: ", trimFileData( fileData ) );
-
-        var preFilters = fileData.info.preFilters || '';
-        var filters = fileData.info.filters || '';
-        var postFilters = fileData.info.postFilters || '';
-
-        log( "About to apply pre-filters, filters and post-filters" );
-        if( preFilters != '' ) log( "Pre-filters: ", preFilters );
-        else log( "No pre-filters" );
-        if( filters != '' ) log( "Filters: ", filters );
-        else log( "No filters" );
-        if( postFilters != '' ) log( "Post-filters: ", postFilters );
-        else log( "No post-filters" );
-
-        applyFilterHooks( 'beforeFilters', fileData, function( err ){
-          if( err ) return cb( err );
-
-          applyFilterList( [ preFilters, filters, postFilters ], fileData, function( err ) {
-            if( err ) return cb( err );
-
-            vlog( "After pre-filtering, filtering and post-filtering, contents are: ", trimFileData( fileData ) );
-
-            applyFilterHooks( 'afterFilters', fileData, function( err ){
-              if( err ) return cb( err );
-
-              if( fileData.system.delayPostProcess ){
-                log( "The element has been marked for delayed postProcess, not running postProcessFilter for now" );
-                processing.toPostProcess.push( fileData );
-                return cb( null, fileData );
-              } else {
-                log( "Running postProcessFilters immediately" );
-                var postProcessFilters = fileData.info.postProcessFilters || '';
-
-                applyFilterHooks( 'beforePostProcessFilters', fileData, function( err ){
-                  if( err ) return cb( err );
-
-                  applyFilterList( postProcessFilters, fileData, function( err ) {
-                    if( err ) return cb( err );
-
-                    applyFilterHooks( 'afterPostProcessFilters', fileData, function( err ){
-                      if( err ) return cb( err );
-
-                      return cb( null, fileData );
-                    });
-                  });
-                });
-              }
-            });
-          });
-        });
+        fileData.filtersPipeline = r;
+        goThroughPipeline();
       });
     });
-  });
+  }
+
+  function goThroughPipeline(){
+
+    async.whilst(
+
+      function() { return fileData.filtersPipeline.length; },
+
+      function( cb ) {
+
+        // Convenience
+        var list = fileData.filtersPipeline;
+
+        // If the next element is the `beforePostProcessFilters` hook AND
+        // system.delayPostProcess is true AND system.inDelayedPostProcess if false,
+        // then it's time to quit -- even before getting the element out
+        if( list[ 0 ].type == 'hook' && list[ 0 ].name == 'beforePostProcessFilters' ){
+          if( fileData.system.delayPostProcess ){
+
+            if( ! fileData.system.inDelayedPostProcess ){
+              log("Postprocessing should be delayed, stopping here (for now)");
+
+              // Adding extra hooks to the process pipeline
+              addHooksToList( list, 'beforeDelayedPostProcess', true );
+              addHooksToList( list, 'afterDelayedPostProcess' );
+
+              // Adding file to the list of files that will need to be
+              // processed later
+              processing.toPostProcess.push( fileData );
+
+              // This will ensure that the `delayPostProcess` flag won't work next time
+              fileData.system.inDelayedPostProcess = true;
+
+              return cb( 'delayed' );
+            } else {
+              log("Postprocessing was delayed and was resumed, continuing");
+            }
+          } else {
+            log( "postProcessing wasn't delayed, about to start it.");
+          }
+        }
+
+        var item = list.shift();
+
+        log( "Applying " + item.type + ":", item.name );
+
+        if( item.type === 'filter' ){
+
+          // The filter must be defined
+          if( ! item.func  ) return cb( new Error("Filter " + filterName + " invalid!") );
+
+          // Check that the filter hasn't already been applied
+          if( fileData.system.processedBy.indexOf( item.name ) != -1 ){
+            log( "Filter was already applied:", item.name );
+            return cb( null );
+          }
+        }
+
+        item.func.call( this, fileData, function( err ){
+          if( err ) return cb( err );
+
+          vlog( "fileData after " + item.type + " is:", trimFileData( fileData ) );
+
+          // Add the filter to the `processedBy` list, which is a nice log and
+          // it's used to avoid double-filtering
+          if( item.type == 'filter' ) fileData.system.processedBy.push( item.name );
+
+          vlog( "fileData after hook is:", trimFileData( fileData ) );
+
+          // Check if the cycle should be interrupted
+          if( fileData.system.stopFiltering ) return cb( 'stopped' );
+
+          cb( null );
+        });
+
+      },
+      function (err) {
+        // If the cycle was stopped or delayed, simply
+        if( err === 'stopped' || err === 'delayed') return cb( null );
+
+        if( err ) return cb( err );
+
+        cb( null );
+      }
+    );
+  }
 }
 
 
@@ -413,145 +541,24 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
   if( processing.toPostProcess.length !== 0 )
     log( "There are some files that had delayPostProcess set to true. Processing them now" );
 
-  applyFilterHooks( 'beforeDelayedPostProcess', function( err ){
-    if( err ) return cb( err );
+  async.eachSeries(
+    processing.toPostProcess,
 
-    async.eachSeries(
-      processing.toPostProcess,
-
-      function( fileData, cb ){
-        var postProcessFilters = fileData.info.postProcessFilters || '';
-        log( "Processing ", fileData.system.fileName + fileData.system.fileExt );
-        log( "Running postProcessFilters:", postProcessFilters );
-
-        applyFilterHooks( 'beforePostProcessFilters', fileData, function( err ){
-          if( err ) return cb( err );
-
-          applyFilterList( postProcessFilters, fileData, function( err ) {
-            if( err ) return cb( err );
-
-            applyFilterHooks( 'afterPostProcessFilters', fileData, function( err ){
-              if( err ) return cb( err );
-
-              cb( null );
-            });
-          });
-        });
-      },
-
-      function( err ){
-
+    function( fileData, cb ){
+      filter( fileData, function( err ){
         if( err ) return cb( err );
 
-        applyFilterHooks( 'afterDelayedPostProcess', function( err ){
-          if( err ) return cb( err );
-
-          cb( null );
-        });
-      }
-    );
-  });
-}
-
-
-// Apply a list of filters. Here, fiterList is either an array of strings, or a
-// string and EACH string is a comma-separated list of filters to apply
-var applyFilterList = exports.applyFilterList = function( filterList, fileData, cb){
-
-  var list = [];
-  var functions = [];
-
-  var fileContents = fileData.contents;
-
-  // Starting point is always considered to be an array
-  if( ! Array.isArray( filterList ) ) filterList = [ filterList ];
-
-  // Here, 'list' is a comma-separated list
-  filterList.forEach( function( f ) {
-
-    // Make up the list as array, and give up if it was empty
-    // Trim spaces, and filter out empty ones
-    var l = f.split(',').map( function( item ) {
-      return item.replace(/ /g, '' );
-    }).filter( function( item ){
-      if( item === '' ) return false;
-      return true;
-    });
-
-    // Add the filters to the list
-    list = list.concat( l );
-  })
-
-  list.forEach( function( filterName ){
-
-    // Sanity checks: filter must exist, and must not repeat
-    if( ! processing.filters[ filterName ] )
-      return cb( new Error("Filter " + filterName + " invalid!") );
-
-    // All good: add it, and mark it as already used
-    functions.push( function( cb ){
-
-      log( "Applying filter", filterName );
-
-      // Check that the filter hasn't already been applied
-      if( fileData.system.processedBy.indexOf( filterName ) != -1 ){
-        log( "Filter was already applied:", filterName );
-        return cb( null );
-      }
-      processing.filters[ filterName ].call( this, fileData, function( err ){
-        if( err ) return cb( err );
-
-        vlog( "fileData after filtering is:", trimFileData( fileData ) );
-        fileData.system.processedBy.push( filterName );
         cb( null );
       });
-    });
-  });
+    },
 
-  async.series( functions, function( err ){
-    if( err ) return cb( err );
-
-    cb( null );
-  });
-}
-
-// Apply all hook functions associated to hook `hookName`
-var applyFilterHooks = exports.applyFilterHooks = function( hookName, fileData, cb){
-
-  log( "Applying filters given by hook: ", hookName );
-
-  var hooks = processing.filterHooks[ hookName ];
-  var functions = [];
-
-  if( ! hooks.length ){
-    log('No hooks registered for ', hookName );
-    return cb( null );
-  } else {
-    log("Hooks registered for ", hookName,":", hooks.length );
-  }
-
-  hooks.forEach( function( hook ){
-
-    // All good: add it, and mark it as already used
-    functions.push( function( cb ){
-
-      console.log( 'HOOK', hook );
-      log( "Applying hook", hook.name );
-
-      hook.executor.call( this, fileData, function( err ){
-        if( err ) return cb( err );
-
-        vlog( "fileData after hook is:", trimFileData( fileData ) );
-        cb( null );
-      });
-    });
-
-    async.series( functions, function( err ){
+    function( err ){
+      if( err == 'stopped' ) return cb( null );
       if( err ) return cb( err );
 
-      cb( null );
-    });
-  });
+      return cb( null );
+    }
+  );
 }
 
 
