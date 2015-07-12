@@ -51,15 +51,19 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Make function that reads config file and sets config, use it instead of "master" _info.yaml
   * [X] Add beforeDelayedPostProcess and afterDelayedPostProcess events, and use them in sorting
   * [X] Make sure sorting of tags happens a the right step
-
   * [X] Write lister to have list of 10 latest posts
   * [X] Change variable names from "group" to "list"
   * [X] Add before- and after- hooks, make frontmatter and lister use them to prevent pollution
   * [X] Check that plugins are in the right spot (config file) and are _overwritten_
   * [X] Check that I actually need to return fileInfo all the bloody time in filtering
-
   * [X] Rewrite filtering infrastructure so that a filter can "fork" filtering whenever
-  * [ ] Write lister to write paginating file with list of entries
+  * [X] Make event with "allDone", when _all_ filtering is done
+  * [X] Fix issue: fileData must have a relative path without getSrc. fileData needs to be created
+        in readdir so that filePath is relative. Then it's absolutised by filecopy.
+  * [X] Standardise the way filePath/fileName/fileExt/fileNameAndExt are used
+
+  * [X] Write lister to write paginating file with list of entries
+  * [ ] Make sane variables for paginating tags/categories
   * [ ] Write plugin that will page single-page output safely. MAYBE find a way to re-start filtering
         with the next filter in the list?
   * [ ] Create liquid filters and tags
@@ -67,17 +71,12 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [ ] Write "serve" command that will serve a file structore
   * [ ] Write "observe" command that will observe file system and re-filter files as needed
 
-
   * [ ] Document everything properly on GitHub
   * [ ] Write test file that needs to be rendered properly, use result as test
   * [ ] At least make a simple basic web site using it
-
-STAND BY:
-  * [ ] Implement a liquid template to include a file and apply filtering, maybe extend `include`
-        https://github.com/leizongmin/tinyliquid/issues/33
 */
-// Private module variables
 
+// Private module variables
 
 var processing = {
   filters: {},
@@ -86,12 +85,92 @@ var processing = {
   verbose: 0,
   toPostProcess: [],
   config: {},
+  mainInfo: {},
 };
 
 
 // Private module methods
 
-/* none */
+var addHooksToList = function( list, hookName, front ){
+
+  var hooks = processing.filterHooks[ hookName ];
+
+  log( "Adding hooks to filtersPipeline for hook", hookName );
+  if( ! hooks.length ){
+    log( 'No hooks registered for ', hookName );
+    log( 'Adding dummy hook...' );
+    list.push( { type: 'hook', name: 'dummy', hookName: hookName, func: function( o, cb ){ cb( null ); } });
+    return;
+  } else {
+    log("Hooks registered for ", hookName,":", hooks.length );
+  }
+
+  hooks.forEach( function( hook ){
+    if( front ){
+      log( "Adding function to the top of the list" );
+      list.unshift( { type: 'hook', name: hook.name, func: hook.executor, hookName: hookName } );
+    }  else {
+      log( "Adding function to the bottom of the list" );
+      list.push( { type: 'hook', name: hook.name, func: hook.executor, hookName: hookName } );
+    }
+  });
+}
+
+
+var addFiltersToList = function( list, commaSeparatedFilters ){
+
+  log( "Adding filters to filtersPipeline:", commaSeparatedFilters );
+
+  // Make up the list as array, and give up if it was empty
+  // Trim spaces, and filter out empty ones
+  var l = commaSeparatedFilters.split(',').map( function( item ) {
+    return item.replace(/ /g, '' );
+  }).filter( function( item ){
+    if( item === '' ) return false;
+    return true;
+  }).forEach( function( filterName ){
+    list.push( { type: 'filter', name: filterName, func: processing.filters[ filterName ] } );
+  });
+}
+
+
+
+// Make the array with the list of filters to be applied to the file
+var makeFilterAndHookList = function( fileData, cb ){
+
+  var list = [];
+
+  // Make up defaults, empty if needed
+  var preProcessFilters = fileData.info.preProcessFilters || '';
+  var preFilters = fileData.info.preFilters || '';
+  var filters = fileData.info.filters || '';
+  var postFilters = fileData.info.postFilters || '';
+  var postProcessFilters = fileData.info.postProcessFilters || '';
+
+  // preProcessFilters and surrounding hooks
+  //addHooksToList( list, 'beforePreProcessFilters' );
+  vlog( "preProcessFilters..." ); addFiltersToList( list, preProcessFilters );
+  vlog( "afterProcessFilters..." ); addHooksToList( list, 'afterPreProcessFilters' );
+
+  // pre,-,post filters and surrounding hooks
+  vlog( "beforeFilters..." ); addHooksToList( list, 'beforeFilters' );
+  vlog( "preFilters..." ); addFiltersToList( list, preFilters );
+  vlog( "filters..." ); addFiltersToList( list, filters );
+  vlog( "postFilters..." ); addFiltersToList( list, postFilters );
+  vlog( "afterFilters..." ); addHooksToList( list, 'afterFilters' );
+
+  // When `fileData.info.delayPostProcess` is `true`, processing will stop here
+
+  // postProcessFilters and surrounding hooks
+  vlog( "beforePostProcessFilters..." ); addHooksToList( list, 'beforePostProcessFilters' );
+  vlog( "postProcessFilters..." ); addFiltersToList( list, postProcessFilters );
+  vlog( "afterPostProcessFilters..." ); addHooksToList( list, 'afterPostProcessFilters' );
+
+  vlog("FINAL hook/filter list:" );
+  vlog( list );
+  return cb( null, list );
+}
+
 
 // Public module variables
 
@@ -109,6 +188,14 @@ var getConfig = exports.getConfig = function(){
 
 var setConfig = exports.setConfig = function( config ){
   processing.config = config;
+}
+
+var getMainInfo = exports.getMainInfo = function(){
+  return processing.mainInfo;
+}
+
+var setMainInfo = exports.setMainInfo = function( mainInfo ){
+  processing.mainInfo = mainInfo;
 }
 
 var setVerbose = exports.setVerbose = function( verbose ){
@@ -135,9 +222,35 @@ var getFilters = exports.getFilters = function(){
   return processing.filters;
 }
 
-var isDir = exports.isDir = function( fullFilePath, cb ){
+var callAllDone = exports.callAllDone = function( cb ){
 
-  fs.lstat( fullFilePath, function( err, fileStat ){
+  log();
+  log("**************************************");
+  log("**** ALL DONE HOOKS ******************");
+  log("**************************************");
+  log();
+
+  async.eachSeries(
+
+    processing.filterHooks.allDone,
+
+    function( item, cb ){
+
+      log( "Executing allDone function: ", item.name );
+      item.executor.call( this, cb );
+    },
+
+    function( err ){
+      if( err ) return cb( err );
+      cb( null );
+    }
+
+  );
+}
+
+var isDir = exports.isDir = function( filePath, fileNameAndExt, cb ){
+
+  fs.lstat( p.join( getSrc(), filePath, fileNameAndExt ), function( err, fileStat ){
     if( err ) return cb( err );
 
     // It's a directory: return true
@@ -147,17 +260,6 @@ var isDir = exports.isDir = function( fullFilePath, cb ){
   });
 }
 
-var isFile = exports.isFile = function( fullFilePath, cb ){
-
-  fs.lstat( fullFilePath, function( err, fileStat ){
-    if( err ) return cb( err );
-
-    // It's a file: return true
-    if( fileStat.isFile() ) return cb( null, true );
-
-    return cb( null, false );
-  });
-}
 
 // Normal logging: log with levels 1 and 2
 var log = exports.log = function( ){
@@ -173,20 +275,23 @@ var vlog = exports.vlog = function( ){
   }
 }
 
-
 // Read file, but trying with a backup path if the "main" one isn't there.
-var readFile = exports.readFile = function( path, backupPath, fileNameAndExt, cb ){
+var readFile = exports.readFile = function( filePath, backupFilePath, fileNameAndExt, cb ){
 
   var usedBackup = false;
   var fileContentsAsBuffer;
 
   // Load the contents of the landing file
-  fs.readFile( p.join( path, fileNameAndExt ), function( err, c ){
-    if( err && err.code !== 'ENOENT' ) return cb( null );
+  fs.readFile( p.join( getSrc(), filePath, fileNameAndExt ), function( err, c ){
+    if( err && err.code !== 'ENOENT' ) return cb( err );
 
     if( err && err.code == 'ENOENT' ){
+
+      // No backup: return the error as it was
+      if( ! backupFilePath ) return cb( err );
+
       usedBackup = true;
-      fs.readFile( p.join( backupPath, fileNameAndExt ), function( err, c ){
+      fs.readFile( p.join( getSrc(), backupFilePath, fileNameAndExt ), function( err, c ){
         if( err ) return cb( err );
 
         fileContentsAsBuffer = c;
@@ -204,7 +309,6 @@ var readFile = exports.readFile = function( path, backupPath, fileNameAndExt, cb
       // are all set and good
 
       cb( null, fileContentsAsBuffer, usedBackup );
-
     }
   });
 }
@@ -312,10 +416,11 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
         'afterPostProcessFilters',
         'beforeDelayedPostProcess',
         'afterDelayedPostProcess',
+        'allDone'
       ],
       function( item, cb ){
-        log( "Collecting hooks for ", item );
         eventEC.emitCollect( item, function( err, itemResult ){
+        log( "Collecting hooks for ", item );
           if( err ) return cb( err );
 
           processing.filterHooks[ item ] = itemResult.onlyResults();
@@ -333,88 +438,6 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
   });
 }
 
-
-var addHooksToList = function( list, hookName, front ){
-
-  var hooks = processing.filterHooks[ hookName ];
-
-  log( "Adding hooks to filtersPipeline for hook", hookName );
-  if( ! hooks.length ){
-    log( 'No hooks registered for ', hookName );
-    log( 'Adding dummy hook...' );
-    list.push( { type: 'hook', name: 'dummy', hookName: hookName, func: function( o, cb ){ cb( null ); } });
-    return;
-  } else {
-    log("Hooks registered for ", hookName,":", hooks.length );
-  }
-
-  hooks.forEach( function( hook ){
-    if( front ){
-      log( "Adding function to the top of the list" );
-      list.unshift( { type: 'hook', name: hook.name, func: hook.executor, hookName: hookName } );
-    }  else {
-      log( "Adding function to the bottom of the list" );
-      list.push( { type: 'hook', name: hook.name, func: hook.executor, hookName: hookName } );
-    }
-  });
-}
-
-
-var addFiltersToList = function( list, commaSeparatedFilters ){
-
-  log( "Adding filters to filtersPipeline:", commaSeparatedFilters );
-
-  // Make up the list as array, and give up if it was empty
-  // Trim spaces, and filter out empty ones
-  var l = commaSeparatedFilters.split(',').map( function( item ) {
-    return item.replace(/ /g, '' );
-  }).filter( function( item ){
-    if( item === '' ) return false;
-    return true;
-  }).forEach( function( filterName ){
-    list.push( { type: 'filter', name: filterName, func: processing.filters[ filterName ] } );
-  });
-  //vlog("List is now:" );
-  //vlog( list );
-}
-
-
-
-// Make the array with the list of filters to be applied to the file
-var makeFilterAndHookList = function( fileData, cb ){
-
-  var list = [];
-
-  // Make up defaults, empty if needed
-  var preProcessFilters = fileData.info.preProcessFilters || '';
-  var preFilters = fileData.info.preFilters || '';
-  var filters = fileData.info.filters || '';
-  var postFilters = fileData.info.postFilters || '';
-  var postProcessFilters = fileData.info.postProcessFilters || '';
-
-  // preProcessFilters and surrounding hooks
-  //addHooksToList( list, 'beforePreProcessFilters' );
-  vlog( "preProcessFilters..." ); addFiltersToList( list, preProcessFilters );
-  vlog( "afterProcessFilters..." ); addHooksToList( list, 'afterPreProcessFilters' );
-
-  // pre,-,post filters and surrounding hooks
-  vlog( "beforeFilters..." ); addHooksToList( list, 'beforeFilters' );
-  vlog( "preFilters..." ); addFiltersToList( list, preFilters );
-  vlog( "filters..." ); addFiltersToList( list, filters );
-  vlog( "postFilters..." ); addFiltersToList( list, postFilters );
-  vlog( "afterFilters..." ); addHooksToList( list, 'afterFilters' );
-
-  // When `fileData.info.delayPostProcess` is `true`, processing will stop here
-
-  // postProcessFilters and surrounding hooks
-  vlog( "beforePostProcessFilters..." ); addHooksToList( list, 'beforePostProcessFilters' );
-  vlog( "postProcessFilters..." ); addFiltersToList( list, postProcessFilters );
-  vlog( "afterPostProcessFilters..." ); addHooksToList( list, 'afterPostProcessFilters' );
-
-  log("FINAL hook/filter list:" );
-  log( list );
-  return cb( null, list );
-}
 
 // Apply filters and hooks to fileData
 // There are three things to remember and consider:
@@ -542,7 +565,7 @@ var filter = exports.filter = function( fileData, cb){
         });
 
       },
-      function (err) {
+      function ( err ) {
         // If the cycle was stopped or delayed, simply
         if( err === 'stopped' || err === 'delayed') return cb( null );
 
@@ -567,6 +590,7 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
     processing.toPostProcess,
 
     function( fileData, cb ){
+      log( "\n\n-------------------\nPROCESSING ", fileData.system.fileName + fileData.system.fileExt,"\n-------------------\n" );
       filter( fileData, function( err ){
         if( err ) return cb( err );
 
@@ -583,17 +607,14 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
   );
 }
 
-
 // Make a fileData object. If fileContentsAsBuffer isn't set, it will
 // load it from filePath + fileName + fileExt
-var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt, fileContentsAsBuffer, info, cb ){
-
-  var fullFilePath = p.join( filePath, fileName + fileExt );
+var makeFileData = exports.makeFileData = function( filePath, fileNameAndExt, fileContentsAsBuffer, info, cb ){
 
   if( fileContentsAsBuffer ){
     restOfFunction();
   } else {
-    fs.readFile( fullFilePath, function( err, fr ){
+    fs.readFile( p.join( getSrc(), filePath, fileNameAndExt ), function( err, fr ){
       if( err ) return cb( err );
       fileContentsAsBuffer = fr;
       restOfFunction();
@@ -605,10 +626,14 @@ var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt,
     magic.detect( fileContentsAsBuffer, function( err, magic ){
       if( err ) return cb( err );
 
+      var fileExt = p.extname( fileNameAndExt );
+      var fileName = p.basename( fileNameAndExt, fileExt );
+
+      log("fileNameAndExt is", fileNameAndExt, "and as a result fileName is ", fileName, "and fileExt is:", fileExt );
+
       // Sets the basic file info
       var fileData = {
         system: {
-          //fullFilePath: fullFilePath,
           filePath: filePath,
           fileName: fileName,
           fileExt: fileExt,
@@ -629,32 +654,55 @@ var makeFileData = exports.makeFileData = function( filePath, fileName, fileExt,
 }
 
 // Read and parse config file
-var readConfig = exports.readConfig = function( dirPath, cb ){
+var readYamlFile = exports.readYamlFile = function( baseObject, filePath, fileNameAndExt, cb ){
 
   // Try and read the master _info.yaml file
-  fs.readFile( p.join( dirPath, '_config.yaml'), function( err, configContents ){
-    if( err ) return cb( err );
+  fs.readFile( p.join( getSrc(), filePath, fileNameAndExt), function( err, yamlFileAsBuffer ){
+    if( err && err.code !== 'ENOENT' ) return cb( err );
+
+    // If the file wasn't find, then simply treat it as an empty result and
+    // return a copy of baseObject
+    if( err && err.code === 'ENOENT' ){
+      return cb( null, cloneObject( baseObject ) );
+    }
 
     try {
-      config = yaml.safeLoad( configContents, { filename:  p.join( dirPath, '_config.yaml') } );
+      var yamlData = yaml.safeLoad( yamlFileAsBuffer, { filename:  p.join( filePath, fileNameAndExt ) } );
     } catch( e ) {
       return cb( err );
     }
 
-    cb( null, config );
+    var newObject = cloneObject( baseObject );
+    enrichObject( newObject, yamlData );
+
+    cb( null, newObject );
+  });
+}
+
+// Read and parse config file. It simpy uses
+var readAndSetConfig = exports.readAndSetConfig = function( cb ){
+
+  if( ! getSrc() ){
+    return cb( new Error("readAndSetConfig will only work after ryver.setSrc()"));
+  }
+
+  readYamlFile( {}, '', '_config.yaml', function( err, data ){
+    if( err ) return cb( err );
+
+    setConfig( data );
+    return cb( null, data );
   });
 }
 
 // Main "build" function that will recursively go through
-// dirPath and filter each encountered file. It will also run
+// absFilePath and filter each encountered file. It will also run
 // `filterDelayedItems()` once all files have been filtered
-var build = exports.build = function( dirPath, passedInfo, cb ){
+var build = exports.build = function( absFilePath, passedInfo, cb ){
 
   // This function only works if process.src and process.dst are set
   if( getSrc() === null )
     return cb( new Error("You must set the source directory first with ryver.setSrc()"));
   if( getDst() === null )
-
     return cb( new Error("You must set the destination directory first with ryver.setDst()"));
 
   var mainCycle = false;
@@ -662,38 +710,39 @@ var build = exports.build = function( dirPath, passedInfo, cb ){
   // If the API signature `build( cb )` is used (no parameters),
   // then set the initial parameters.
   // Subsequent calls to this function will use the recursive signature
-  // build( dirPath, passedInfo )
+  // build( absFilePath, passedInfo )
 
-  if( typeof dirPath === 'function' ){
-    cb = dirPath;
-    dirPath = getSrc();
+  if( typeof absFilePath === 'function' ){
+    cb = absFilePath;
+    absFilePath = getSrc();
     passedInfo = {};
     mainCycle = true;
   }
 
+  var info;
+
+  var filePath = absFilePath.substr( getSrc().length + 1 );
+
+  log( "absFilePath (full fs path):", absFilePath );
+  log( "filePath (relative to getSrc():", filePath );
+
   // Read all of the files in that directory
-  fs.readdir( dirPath, function( err, fileNamesWithExt ){
+  fs.readdir( absFilePath, function( err, fileNamesAndExt ){
     if( err ) return cb( err );
 
-    log( "Will process the following files:", fileNamesWithExt );
+    log( "Will process the following files:", fileNamesAndExt );
     vlog( "Info (including inherited values) is:", passedInfo );
 
     // There is a _info.yaml in the local directory! It will load it, and
     // make an info object based on passedInfo enriched with localInfo
-    if( fileNamesWithExt.indexOf( '_info.yaml' ) !== -1 ){
+    if( fileNamesAndExt.indexOf( '_info.yaml' ) !== -1 ){
 
       log( "File _info.yaml found, reading it and enriching fileInfo with it");
 
-      fs.readFile( p.join( dirPath, '_info.yaml' ), function( err, loadedInfo ){
+      readYamlFile( passedInfo, filePath, '_info.yaml', function( err, loadedInfo ){
         if( err ) return cb( err );
-        try {
-          var localInfo = yaml.safeLoad( loadedInfo, { filename: p.join( dirPath, 'info.yaml' ) } );
-          info = cloneObject( passedInfo );
-          enrichObject( info, localInfo );
-          vlog( "Info after enriching with local _info.yaml is:", info );
-        } catch ( e ){
-          return cb( e );
-        }
+        info = loadedInfo;
+        if( mainCycle ) setMainInfo( loadedInfo );
         restOfFunction();
       });
     } else {
@@ -706,31 +755,34 @@ var build = exports.build = function( dirPath, passedInfo, cb ){
 
       log( "Going through all files in the directory" );
       async.eachSeries(
-        fileNamesWithExt,
-        function( fileName, cb ){
+        fileNamesAndExt,
+        function( fileNameAndExt, cb ){
 
-          log( "Processing ", fileName );
-          if( fileName[ 0 ] === '_' ){
+          log( "\n\n-------------------\nPROCESSING ", fileNameAndExt ,"\n-------------------\n" );
+          if( fileNameAndExt[ 0 ] === '_' ){
             log( "File starts with underscore, ignoring altogether" );
             return cb( null );
           }
 
-          var fileExt = p.extname( fileName );
-          fileName = p.basename( fileName, fileExt );
+          // Break up fileName into fileName and fileExt
+          //var fileExt = p.extname( fileNameAndExt );
+          //var fileName = p.basename( fileNameAndExt, fileExt );
 
-          var fullFilePath = p.join( dirPath, fileName + fileExt );
-          isDir( fullFilePath, function( err, dir ){
+          isDir( filePath, fileNameAndExt, function( err, dir ){
             if( err ) return cb( err );
 
             // If it's a directory, process it as such
             if( dir ){
               log( "File is a directory. Entering it, and processing files in there" );
-              return build( fullFilePath, info, cb );
+              return build( p.join( getSrc(), fileNameAndExt ), info, cb );
             }
 
             log( "It is a file. Reading its contents" );
 
-            makeFileData( dirPath, fileName, fileExt, null, info, function( err, fileData ){
+            log( "filePath: ", filePath );
+            log( "getSrc() is: ", getSrc() );
+
+            makeFileData( filePath, fileNameAndExt, null, info, function( err, fileData ){
 
               if( err ) return cb( err );
 
@@ -752,17 +804,59 @@ var build = exports.build = function( dirPath, passedInfo, cb ){
 
           if( ! mainCycle ) return cb( null );
 
-          log( "\n******** THE END -- NOW FILTERING DELAYED ITEMS *********************\n" );
+          log( "" );
+          log( "*********************************************************************" );
+          log( "******** THE END -- NOW FILTERING DELAYED ITEMS *********************" );
+          log( "*********************************************************************" );
+          log( "" );
 
           // At this point, we ought to process all the items that reused to get processed
           // and are now in processing.toPostProcess
           filterDelayedItems( function( err ){
             if( err ) return cb( err );
 
-            cb( null );
+            callAllDone( function( err ){
+              if( err ) return cb( err );
+
+              cb( null );
+            });
+
           })
         }
       ); // End of async cycle
     }
   })
 }
+
+
+/* Discarded functions */
+
+/*
+var isFile = exports.isFile = function( filePath, fileNameAndExt, cb ){
+
+  fs.lstat( p.join( getSrc(), filePath, fileNameAndExt ), function( err, fileStat ){
+    if( err ) return cb( err );
+
+    // It's a file: return true
+    if( fileStat.isFile() ) return cb( null, true );
+
+    return cb( null, false );
+  });
+}
+*/
+
+
+/*
+// Read and parse config file. It simpy uses
+var readAndSetMainInfo = exports.readAndSetMainInfo = function( cb ){
+
+  if( ! getSrc() ){
+    return cb( new Error("readAndSetConfig will only work after ryver.setSrc()"));
+  }
+
+  readYamlFile( {}, '', '_info.yaml', function( err, data ){
+    setMainInfo( data );
+    return cb( null, data );
+  });
+}
+*/

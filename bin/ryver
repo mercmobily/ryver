@@ -51,7 +51,7 @@ function log(message){
 program
   .version(require('../package.json').version)
   .usage("[options] [source] [destination]")
-  .option('-p, --plugins [plugins]', 'Add plugins')
+  .option('-p, --plugins [plugins]', 'Set plugins to load')
   .option('-v, --verbose', 'Verbose output')
   .option('-x, --extra-verbose', 'Very verbose output');
 
@@ -102,15 +102,12 @@ else if( program.extraVerbose ) ryver.setVerbose( 2 );
  */
 
 // Default plugins
-var plugins = [ 'frontmatter', 'layout', 'markup-markdown', 'template-liquid', 'filecopy', 'landing', 'lister' ];
+var plugins = [ 'frontmatter', 'markup-markdown', 'layout', 'landing', 'lister', 'template-liquid', 'filecopy'  ];
 
 // Add plugin from "master" _info.yaml file
 
-ryver.readConfig( src, function( err, config ){
+ryver.readAndSetConfig( function( err, config ){
   if( err ) fatal( err, err.stack );
-
-  // Set the configuration file variable
-  ryver.setConfig( config );
 
   // Take plugins from the command line (which takes precedence) or the config
   // file (as a last resort to change the default list);
