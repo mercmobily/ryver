@@ -541,7 +541,7 @@ var filter = exports.filter = function( fileData, cb){
         if( item.type === 'filter' ){
 
           // The filter must be defined
-          if( ! item.func  ) return cb( new Error("Filter " + filterName + " invalid!") );
+          if( ! item.func  ) return cb( new Error("Filter " + item.name + " invalid!") );
 
           // Check that the filter hasn't already been applied
           if( fileData.system.processedBy.indexOf( item.name ) != -1 ){
