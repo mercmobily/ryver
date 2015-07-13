@@ -63,10 +63,12 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Standardise the way filePath/fileName/fileExt/fileNameAndExt are used
 
   * [X] Write lister to write paginating file with list of entries
-  * [ ] Make sane variables for paginating tags/categories
-  * [ ] Write plugin that will page single-page output safely. MAYBE find a way to re-start filtering
-        with the next filter in the list?
-  * [ ] Create liquid filters and tags
+  * [X] Make sane variables for paginating tags/categories
+  * [X] Make pager variable with the list of pages pre-packaged, so that the pager "scrolls"
+        keeping the current page in the middle unless at left or right edge
+
+  * [ ] Write plugin that will page single-page output safely.
+  * [ ] See if it makes sense to implement generic system to redefine tags and filters
 
   * [ ] Write "serve" command that will serve a file structore
   * [ ] Write "observe" command that will observe file system and re-filter files as needed
@@ -720,7 +722,6 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
   }
 
   var info;
-
   var filePath = absFilePath.substr( getSrc().length + 1 );
 
   log( "absFilePath (full fs path):", absFilePath );
@@ -774,7 +775,7 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
             // If it's a directory, process it as such
             if( dir ){
               log( "File is a directory. Entering it, and processing files in there" );
-              return build( p.join( getSrc(), fileNameAndExt ), info, cb );
+              return build( p.join( getSrc(), filePath, fileNameAndExt ), info, cb );
             }
 
             log( "It is a file. Reading its contents" );
