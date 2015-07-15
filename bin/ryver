@@ -109,6 +109,7 @@ var plugins = [ 'frontmatter', 'markup-markdown', 'layout', 'landing', 'lister',
 ryver.readAndSetConfig( function( err, config ){
   if( err ) fatal( err, err.stack );
 
+  var plugins;
   // Take plugins from the command line (which takes precedence) or the config
   // file (as a last resort to change the default list);
   if( program.plugins && program.plugins != '' ){
