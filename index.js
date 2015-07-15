@@ -67,10 +67,13 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Make pager variable with the list of pages pre-packaged, so that the pager "scrolls"
         keeping the current page in the middle unless at left or right edge
 
-  * [ ] Write plugin that will page single-page output safely.
-  * [ ] See if it makes sense to implement generic system to redefine tags and filters
+  * [X] Write plugin that will page single-page output safely.
+  * [X] Change pager plugin so that it has pagerData the same as the lister
+  * [X] Change logging so that it's not dead slow even though fileData is cloned and trimmed
+  * [ ] Write EJS filter, same as liquid but with real Javascript
 
-  * [ ] Write "serve" command that will serve a file structore
+  * [ ] Write "serve" command that will serve a file structore (easy! Just a web server!)
+
   * [ ] Write "observe" command that will observe file system and re-filter files as needed
 
   * [ ] Document everything properly on GitHub
@@ -272,9 +275,15 @@ var log = exports.log = function( ){
 
 // Very verbose logging: only log with level 2
 var vlog = exports.vlog = function( ){
+
   if( processing.verbose == 2 ){
-    console.log.apply( this, arguments );
+    if( typeof arguments[ 0 ] === 'function' && arguments.length == 1 ){
+      arguments[0].call( this );
+    } else {
+      console.log.apply( this, arguments );
+    }
   }
+
 }
 
 // Read file, but trying with a backup path if the "main" one isn't there.
@@ -317,25 +326,15 @@ var readFile = exports.readFile = function( filePath, backupFilePath, fileNameAn
 
 
 var trimFileData = exports.trimFileData = function( fileData ){
-  var newFileData = {};
 
-  // Copy over everything except `initialContents`
-  for( var k in fileData ){
+  var newFileData = cloneObject( fileData );
 
-    // Needs to be own property
-    if( ! fileData.hasOwnProperty( k ) ) continue;
+  newFileData.initialContents = '';
 
-    // No initial contents copied over
-    if( k === 'initialContents') continue;
-
-
-    newFileData[ k ] = fileData[ k ];
-  }
-
-  // If it's not text, then chop `contents` away too
-  if( fileData.system.mimetype.split('/')[0] !== 'text'){
+  if( newFileData.system.mimetype.split('/')[0] !== 'text'){
     newFileData.contents = "NON TEXT";
   }
+  newFileData.system.fileContentsAsBuffer = '';
 
   return newFileData;
 }
@@ -554,7 +553,9 @@ var filter = exports.filter = function( fileData, cb){
           if( err ) return cb( err );
 
           if( item.name != 'dummy')
-            vlog( "fileData after " + item.type + " is:", trimFileData( fileData ) );
+            vlog( function(){
+              vlog( "fileData after " + item.type + " is:", trimFileData( fileData ) );
+            } );
 
           // Add the filter to the `processedBy` list, which is a nice log and
           // it's used to avoid double-filtering
@@ -670,7 +671,7 @@ var readYamlFile = exports.readYamlFile = function( baseObject, filePath, fileNa
 
     try {
       var yamlData = yaml.safeLoad( yamlFileAsBuffer, { filename:  p.join( filePath, fileNameAndExt ) } );
-    } catch( e ) {
+    } catch( err ) {
       return cb( err );
     }
 
@@ -788,7 +789,10 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
               if( err ) return cb( err );
 
               log( "Basic fileData created" );
-              vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
+              vlog( function(){
+                vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
+              });
+
               log( "The file's mime type is ", fileData.system.mimetype );
 
               filter( fileData, function( err ){
