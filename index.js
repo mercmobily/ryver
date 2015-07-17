@@ -70,10 +70,10 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Write plugin that will page single-page output safely.
   * [X] Change pager plugin so that it has pagerData the same as the lister
   * [X] Change logging so that it's not dead slow even though fileData is cloned and trimmed
-  * [ ] Write EJS filter, same as liquid but with real Javascript
+  * [X] Write EJS filter, same as liquid but with real Javascript
+  * [X] Face (and fix) issue where a filter will escape another filter's needed stuff
 
   * [ ] Write "serve" command that will serve a file structore (easy! Just a web server!)
-
   * [ ] Write "observe" command that will observe file system and re-filter files as needed
 
   * [ ] Document everything properly on GitHub
@@ -92,7 +92,6 @@ var processing = {
   config: {},
   mainInfo: {},
 };
-
 
 // Private module methods
 
@@ -170,6 +169,7 @@ var makeFilterAndHookList = function( fileData, cb ){
   vlog( "beforePostProcessFilters..." ); addHooksToList( list, 'beforePostProcessFilters' );
   vlog( "postProcessFilters..." ); addFiltersToList( list, postProcessFilters );
   vlog( "afterPostProcessFilters..." ); addHooksToList( list, 'afterPostProcessFilters' );
+  vlog( "afterEverything..." ); addHooksToList( list, 'afterEverything' );
 
   vlog("FINAL hook/filter list:" );
   vlog( list );
@@ -417,6 +417,7 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
         'afterPostProcessFilters',
         'beforeDelayedPostProcess',
         'afterDelayedPostProcess',
+        'afterEverything',
         'allDone'
       ],
       function( item, cb ){
