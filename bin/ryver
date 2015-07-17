@@ -102,7 +102,7 @@ else if( program.extraVerbose ) ryver.setVerbose( 2 );
  */
 
 // Default plugins
-var plugins = [ 'frontmatter', 'markup-markdown', 'layout', 'landing', 'lister', 'template-liquid', 'filecopy'  ];
+var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'lister', 'template-liquid', 'template-ejs', 'filecopy'  ];
 
 // Add plugin from "master" _info.yaml file
 
