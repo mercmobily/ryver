@@ -833,36 +833,3 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
     }
   })
 }
-
-
-/* Discarded functions */
-
-/*
-var isFile = exports.isFile = function( filePath, fileNameAndExt, cb ){
-
-  fs.lstat( p.join( getSrc(), filePath, fileNameAndExt ), function( err, fileStat ){
-    if( err ) return cb( err );
-
-    // It's a file: return true
-    if( fileStat.isFile() ) return cb( null, true );
-
-    return cb( null, false );
-  });
-}
-*/
-
-
-/*
-// Read and parse config file. It simpy uses
-var readAndSetMainInfo = exports.readAndSetMainInfo = function( cb ){
-
-  if( ! getSrc() ){
-    return cb( new Error("readAndSetConfig will only work after ryver.setSrc()"));
-  }
-
-  readYamlFile( {}, '', '_info.yaml', function( err, data ){
-    setMainInfo( data );
-    return cb( null, data );
-  });
-}
-*/
