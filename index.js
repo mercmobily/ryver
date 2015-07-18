@@ -73,14 +73,35 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Write EJS filter, same as liquid but with real Javascript
   * [X] Face (and fix) issue where a filter will escape another filter's needed stuff
 
-  * [ ] Write "serve" command that will serve a file structore (easy! Just a web server!)
-  * [ ] Write "observe" command that will observe file system and re-filter files as needed
+  * [X] Write "serve" command that will serve a file structore (easy! Just a web server!)
+  * [ ] Write "watch" command that will watch file system and re-filter files as needed
 
   * [ ] Document everything properly on GitHub
   * [ ] Write test file that needs to be rendered properly, use result as test
   * [ ] At least make a simple basic web site using it
-*/
 
+
+CHANGER:
+Each module is responsible of re-filtering based on files touched.
+Each module, at generation time, will need to create data to make watching possible
+
+CHANGER: main
+In the main ryver.js file.
+* Metadata: Each file that is found during initial scan, is added to an hash
+* What: Each time a file within the hash is changed, it will re-filter it
+
+CHANGER: lister
+* Metadata: A hash of files names associated to each category/tag
+* What: Each time a file within the hash is changed, it will re-generate the
+  list for that category. So if a file tagged as "unix" is changed, the list for
+  "unix" is re-made
+
+CHANGER: lister-latest
+* Metadata: A hash of file names associated to what "latest" list they contain
+
+
+
+*/
 // Private module variables
 
 var processing = {

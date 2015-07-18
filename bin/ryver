@@ -12,6 +12,8 @@ var yaml = require('js-yaml');
 var fs = require('fs');
 var p = require('path');
 
+var static = require('node-static');
+
 /**
  * Support functions.
  */
@@ -37,10 +39,78 @@ function fatal(msg, stack){
 }
 
 
-function log(message){
+function log( message ){
   console.log();
-  console.log(chalk.gray('  Ryver · ') + message);
+  console.log( chalk.gray('  Ryver · ') + message );
   console.log();
+}
+
+function serveFiles(){
+  var port = program.port || 8080;
+
+  var fileServer = new static.Server( dst );
+
+  require( 'http' ).createServer( function( req, res ){
+
+    req.addListener( 'end', function(){
+
+      fileServer.serve( req, res, function( err, result ) {
+        if( err ) {
+          console.error("Error serving " + req.url + " - " + err.message );
+          res.writeHead( err.status, err.headers );
+          res.end( "Error: " + err.message );
+        } else {
+          console.log("Served: " + req.url );
+        }
+      });
+    }).resume();
+  } ).listen( port );
+  console.log("Site is available on http://localhost:" + port)
+}
+
+function watchFiles(){
+  console.log("Watching files and re-generating in real time" );
+
+  var chokidar = require('chokidar');
+
+  var watcher = chokidar.watch( src, {
+    persistent: true
+  });
+
+  var log = console.log.bind(console);
+
+  watcher
+    .on('change', function(path) { log('File', path, 'has been changed'); })
+    .on('unlink', function(path) { log('File', path, 'has been removed'); })
+    .on('unlinkDir', function(path) { log('Directory', path, 'has been removed'); })
+    .on('error', function(error) { log('Error happened', error); })
+    .on('ready', function() {
+      watcher.on('add', function(path) { log('File', path, 'has been added'); })
+      watcher.on('addDir', function(path) { log('Directory', path, 'has been added'); })
+      log('Initial scan complete. Ready for changes.');
+    })
+    //.on('raw', function(event, path, details) { log('Raw event info:', event, path, details); })
+  ;
+    // More events.
+
+
+
+  /*
+  Watch source directory
+  If anything changes, add it to an array
+  Once per second:
+    * Check if array is empty
+    * If it's NOT empty:
+      * If running == true, it's already running. Skip, will check again later
+      * running = true;
+      * Make a copy of array
+      * Zap the array
+      * For each file emit an emitCollect signal and receive functions back
+      * Run all of the returned functions
+      * When ALL finished, set running = false
+*/
+
+
 }
 
 
@@ -51,9 +121,12 @@ function log(message){
 program
   .version(require('../package.json').version)
   .usage("[options] [source] [destination]")
-  .option('-p, --plugins [plugins]', 'Set plugins to load')
+  .option('-P, --plugins [plugins]', 'Set plugins to load')
   .option('-v, --verbose', 'Verbose output')
-  .option('-x, --extra-verbose', 'Very verbose output');
+  .option('-x, --extra-verbose', 'Very verbose output')
+  .option('-s, --serve', 'Serve site after building')
+  .option('-p, --port [port]', 'If serving a site, which port to use (default: 8080)')
+  .option('-w, --watch', 'Watch for file changes after building');
 
 /**
  * Examples.
@@ -134,6 +207,15 @@ ryver.readAndSetConfig( function( err, config ){
     // Let the fun begin!
     ryver.build( function( err ){
       if( err ) return fatal( err.message, err.stack );
+
+      // If the serve option is on, serve the files
+      if( program.serve) {
+        serveFiles();
+      }
+
+      if( program.watch ){
+        watchFiles();
+      }
 
       // That's it: end of story.
       //process.exit();
