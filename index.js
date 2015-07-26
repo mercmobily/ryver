@@ -74,8 +74,25 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Face (and fix) issue where a filter will escape another filter's needed stuff
 
   * [X] Write "serve" command that will serve a file structore (easy! Just a web server!)
-  * [ ] Write "watch" command that will watch file system and re-filter files as needed
+  * [/] Write "watch" command that will watch file system and re-filter files as needed
+      [X] Make function to make list of all possible _info.yaml from a path
+      [X] Make sure that all possible _info.yaml files are added as originFileURLs (in main)
+      [X] Add layout files as originFileURLs (in ryver-layout)
+      [X] Make watching cycle actually work, call eventEmitterCollect on each event (in main)
+      [X] Monitor changes to _info.yaml files, update cache (in main)
 
+      [ ] Make basic data structures to store what change will affect what file (in ryver-copy)
+      [ ] Monitor that master entries in originFileURLs are not deleted (in ryver-copy)
+      [ ] Write script that will re-filter files when an origin has changed (in ryver-copy)
+
+      [ ] INITIAL MAIN TEST. CHANGES SHOULD NOW BE SUCCESSFULLY TRACKED
+
+      [ ] Check for _config.yaml. If changed, rebuild _everything_ or simply quit
+
+      [ ] Make ths work for ryver-lister (no originFileURLs) by creating initial data structure
+          and then monitor changes and re-generating affected lists
+
+  * [ ] Make default file structure for themes
   * [ ] Document everything properly on GitHub
   * [ ] Write test file that needs to be rendered properly, use result as test
   * [ ] At least make a simple basic web site using it
@@ -100,9 +117,9 @@ CHANGER: lister-latest
 * Metadata: A hash of file names associated to what "latest" list they contain
 
 
-
 */
 // Private module variables
+// (Not exported)
 
 var processing = {
   filters: {},
@@ -112,7 +129,45 @@ var processing = {
   toPostProcess: [],
   config: {},
   mainInfo: {},
+  yamlCache: {},
 };
+
+
+// Public module variables
+// (Exported)
+
+var eventEC = exports.eventEC = new EventEmitterCollector;
+
+// Signal management
+eventEC.onCollect( 'watch', function( cb ){
+
+  var f = function( op, URL, cb ){
+    vlog( "main: Operation", op, "on", URL );
+
+    // It will only care about _info.yaml
+    if( p.basename( URL ) !== '_info.yaml' ) {
+      vlog("main-info-watch: Ignoring file since it's not called _info.yaml");
+      return cb( null );s
+    }
+
+    // Make up filePath and fileNameAndExt
+    var filePath = p.dirname( URL);
+    var fileNameAndExt = p.basename( URL );
+
+    // If filePath is empty, dirname returns '.'. Change it to '.'
+    if( filePath === '.' ) filePath = '';
+
+    // Read the YAML file, which will also update the cache
+    readYamlFile( {}, filePath, fileNameAndExt, function( err, newObject, yamlData ){
+      log( "Cached of _info.yaml files changed to: ", processing.yamlCache[ URL ] );
+      cb( null );
+    });
+  }
+
+  // Return the function just defined as the filter
+  cb( null, { name: 'main-info-watch', executor: f } );
+});
+
 
 // Private module methods
 
@@ -198,13 +253,8 @@ var makeFilterAndHookList = function( fileData, cb ){
 }
 
 
-// Public module variables
-
-/* none */
-
 // Public module methods
 
-var eventEC = exports.eventEC = new EventEmitterCollector;
 
 // Getters and setters for 'processing' variables
 
@@ -247,6 +297,30 @@ var setDst = exports.setDst = function( dst ){
 var getFilters = exports.getFilters = function(){
   return processing.filters;
 }
+
+var getYamlCache = exports.getYamlCache = function(){
+  return processing.yamlCache;
+}
+
+
+
+var yamlURLsFromPath = exports.yamlURLsFromPath = function( filePath ){
+  var l = filePath.split( p.sep );
+  var r = [];
+  var prec = '';
+
+  if( l[ 0 ] != '' ) l.unshift( '' );
+
+  // Make up the r array
+  l.forEach( function( e ){
+    prec = p.join( prec, e );
+    r.push( p.join( prec, '_info.yaml' ) );
+  });
+
+  // Return it
+  return r;
+}
+
 
 var callAllDone = exports.callAllDone = function( cb ){
 
@@ -634,7 +708,7 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
 
 // Make a fileData object. If fileContentsAsBuffer isn't set, it will
 // load it from filePath + fileName + fileExt
-var makeFileData = exports.makeFileData = function( filePath, fileNameAndExt, fileContentsAsBuffer, info, cb ){
+var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNameAndExt, fileContentsAsBuffer, info, cb ){
 
   if( fileContentsAsBuffer ){
     restOfFunction();
@@ -666,12 +740,19 @@ var makeFileData = exports.makeFileData = function( filePath, fileNameAndExt, fi
 
           mimetype: magic,
           processedBy: [],
+          originFileURLs: [],
+          originMasterFileURL: sourceURL ?  sourceURL : null,
         },
         initialInfo: cloneObject( info ),
         info: cloneObject( info ),
         initialContents: fileContentsAsBuffer,
         contents: fileContentsAsBuffer.toString(),
       };
+
+      // Add all of the info files to originFileURLs
+      yamlURLsFromPath( fileData.system.filePath ).forEach( function( URL ){
+        fileData.system.originFileURLs.push( URL );
+      });
 
       cb( null, fileData );
     });
@@ -697,10 +778,14 @@ var readYamlFile = exports.readYamlFile = function( baseObject, filePath, fileNa
       return cb( err );
     }
 
+    // Add the raw yaml file it to the yamCache structure
+    if( fileNameAndExt === '_info.yaml' )
+      processing.yamlCache[ p.join( filePath, fileNameAndExt) ] = yamlData;
+
     var newObject = cloneObject( baseObject );
     enrichObject( newObject, yamlData );
 
-    cb( null, newObject );
+    cb( null, newObject, yamlData );
   });
 }
 
@@ -765,6 +850,7 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
 
       readYamlFile( passedInfo, filePath, '_info.yaml', function( err, loadedInfo ){
         if( err ) return cb( err );
+
         info = loadedInfo;
         if( mainCycle ) setMainInfo( loadedInfo );
         restOfFunction();
@@ -806,9 +892,11 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
             log( "filePath: ", filePath );
             log( "getSrc() is: ", getSrc() );
 
-            makeFileData( filePath, fileNameAndExt, null, info, function( err, fileData ){
-
+            makeFileData( p.join( filePath, fileNameAndExt ), filePath, fileNameAndExt, null, info, function( err, fileData ){
               if( err ) return cb( err );
+
+              // Set the master (first entry) originFileURL
+              fileData.system.originFileURLs.push( p.join( filePath, fileNameAndExt ) );
 
               log( "Basic fileData created" );
               vlog( function(){
