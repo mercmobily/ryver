@@ -8,6 +8,7 @@ var ryver = require('..');
 var program = require('commander');
 var chalk = require('chalk');
 var yaml = require('js-yaml');
+var async = require('async');
 
 var fs = require('fs');
 var p = require('path');
@@ -48,50 +49,126 @@ function log( message ){
 function serveFiles(){
   var port = program.port || 8080;
 
-  var fileServer = new static.Server( dst );
+  var finalhandler = require('finalhandler')
+  var http = require('http')
+  var serveStatic = require('serve-static')
 
-  require( 'http' ).createServer( function( req, res ){
+  // Serve up public/ftp folder
+  var serve = serveStatic( dst, { fallthrough: false, 'index': ['index.html', 'index.htm']})
 
-    req.addListener( 'end', function(){
+  // Create server
+  var server = http.createServer(function( req, res ){
+    var done = finalhandler( req, res)
+    serve( req, res, function( err ){
+      if( err ){
+        if( err.status === 404 ) console.err( "File not found:", err.path );
+        else console.log( "Server error:", err );
+      }
+      done( err );
+    });
+  })
 
-      fileServer.serve( req, res, function( err, result ) {
-        if( err ) {
-          console.error("Error serving " + req.url + " - " + err.message );
-          res.writeHead( err.status, err.headers );
-          res.end( "Error: " + err.message );
-        } else {
-          console.log("Served: " + req.url );
-        }
-      });
-    }).resume();
-  } ).listen( port );
+  // Listen
+  server.listen( port );
   console.log("Site is available on http://localhost:" + port)
 }
 
 function watchFiles(){
   console.log("Watching files and re-generating in real time" );
 
-  var chokidar = require('chokidar');
+  var watchers = [];
+  var queue = [];
 
-  var watcher = chokidar.watch( src, {
-    persistent: true
+  ryver.eventEC.emitCollect( 'watch', function( err, watchersResults ){
+    if( err ) return cb( err );
+
+    // Gather the list of executors
+    watchersResults.onlyResults().forEach( function( watcher ) {
+      watchers.push( { name: watcher.name, executor: watcher.executor } );
+    });
+
+
+    var chokidar = require('chokidar');
+    var fileWatcher = chokidar.watch( src, {
+      persistent: true
+    });
+
+    //var log = console.log.bind(console);
+
+    fileWatcher
+      .on('error', function(error) { log('Error happened', error); })
+      .on('ready', function() {
+
+        // I don't think I am interested in these ones
+        //watcher.on('addDir', function( path ) { log('Directory', path, 'has been added'); })
+        //watcher.on('unlinkDir', function( path ) { log('Directory', path, 'has been removed'); })
+        //watcher.on('raw', function(event, path, details) { log('Raw event info:', event, path, details); })
+
+        // Makes the returning function, depending on the event name
+        var makeCaller = function( event ){
+          return function( path ){
+            var URL = path.substr( ryver.getSrc().length + 1 );
+            ryver.log('File', URL, 'has been changed', path );
+            queue.push( { op: 'change', URL: URL })
+          }
+        }
+
+        fileWatcher.on('change', makeCaller( 'change' ) );
+        fileWatcher.on('add', makeCaller( 'add' ) );
+        fileWatcher.on('unlink', makeCaller( 'unlink' ) );
+
+        ryver.log('Initial scan complete. Ready for changes.');
+      });
+
+    var running = false;
+    setInterval( function(){
+
+      if( !queue.length ) return;
+
+      if( running ){
+        ryver.log("There are changes but previous changes are still being dealt with, will wait!" );
+      }
+
+      // Destructive copy of queue onto the q variable
+      var q = queue.splice( 0, queue.length );
+
+      // For each element in the queue...
+      async.eachSeries(
+        q,
+        function( qEntry, cb ){
+          ryver.log("Dealing with entry in queue:", qEntry );
+          ryver.log("Number of watchers:", watchers.length );
+
+          // Goes through the watchers, and execute them
+          async.eachSeries(
+            watchers,
+            function( watcher, cb ){
+              ryver.log("Executing watcher:", watcher.name );
+
+              watcher.executor.call( this, qEntry.op, qEntry.URL, cb );
+            },
+            function( err ){
+              if( err ) return cb( err );
+              cb( null );
+            }
+          )
+        },
+        function( err ){
+          running = 0;
+          if( err ) console.log("Error!", err );
+
+
+
+        }
+      )
+
+
+
+    }, 2000 );
+
   });
 
-  var log = console.log.bind(console);
 
-  watcher
-    .on('change', function(path) { log('File', path, 'has been changed'); })
-    .on('unlink', function(path) { log('File', path, 'has been removed'); })
-    .on('unlinkDir', function(path) { log('Directory', path, 'has been removed'); })
-    .on('error', function(error) { log('Error happened', error); })
-    .on('ready', function() {
-      watcher.on('add', function(path) { log('File', path, 'has been added'); })
-      watcher.on('addDir', function(path) { log('Directory', path, 'has been added'); })
-      log('Initial scan complete. Ready for changes.');
-    })
-    //.on('raw', function(event, path, details) { log('Raw event info:', event, path, details); })
-  ;
-    // More events.
 
 
 
@@ -103,8 +180,7 @@ function watchFiles(){
     * If it's NOT empty:
       * If running == true, it's already running. Skip, will check again later
       * running = true;
-      * Make a copy of array
-      * Zap the array
+      * Make a copy of array/Zap the array
       * For each file emit an emitCollect signal and receive functions back
       * Run all of the returned functions
       * When ALL finished, set running = false
@@ -113,8 +189,8 @@ function watchFiles(){
 
 }
 
-
 /**
+
  * Usage.
  */
 
@@ -154,7 +230,7 @@ program.on('--help', function(){
  * Parse and get parameters.
  */
 
-program.parse(process.argv);
+program.parse( process.argv );
 
 var cwd = process.cwd();
 var src = program.args[ 0 ] || '.';
@@ -210,9 +286,9 @@ ryver.readAndSetConfig( function( err, config ){
 
       // If the serve option is on, serve the files
       if( program.serve) {
+
         serveFiles();
       }
-
       if( program.watch ){
         watchFiles();
       }
