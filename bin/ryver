@@ -88,12 +88,16 @@ function watchFiles(){
     });
 
 
+    // Run the watcher, adding an 'ignore' option for the destination directory
+    // in case it's within the source one
+    function stripTrailingSlash( str ){
+      return str.substr( -1 ) === '/' ? str.substr(0, str.length - 1 ) : str;
+    }
     var chokidar = require('chokidar');
     var fileWatcher = chokidar.watch( src, {
-      persistent: true
+      persistent: true,
+      ignored: stripTrailingSlash( ryver.getDst() ),
     });
-
-    //var log = console.log.bind(console);
 
     fileWatcher
       .on('error', function(error) { log('Error happened', error); })
@@ -108,13 +112,18 @@ function watchFiles(){
         var makeCaller = function( event ){
           return function( path ){
             var URL = path.substr( ryver.getSrc().length + 1 );
-            ryver.log('File', URL, 'has been changed', path );
-            queue.push( { op: 'change', URL: URL })
+            console.log('File', URL, 'has been', event, ':', path );
+
+            // Filter out events on the same files already in the queue
+            queue = queue.filter( function( element) { return element.URL !== URL } );
+
+            // Add element to th3e queue
+            queue.push( { op: event, URL: URL })
           }
         }
 
-        fileWatcher.on('change', makeCaller( 'change' ) );
         fileWatcher.on('add', makeCaller( 'add' ) );
+        fileWatcher.on('change', makeCaller( 'change' ) );
         fileWatcher.on('unlink', makeCaller( 'unlink' ) );
 
         ryver.log('Initial scan complete. Ready for changes.');
@@ -245,6 +254,9 @@ ryver.setDst( dst );
 // Set verbosty level
 if( program.verbose ) ryver.setVerbose( 1 );
 else if( program.extraVerbose ) ryver.setVerbose( 2 );
+
+// Set the internal watch variable
+if( program.watch ) ryver.setWatch( true );
 
 /**
  * Load plugins.
