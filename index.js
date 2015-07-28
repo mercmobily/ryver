@@ -81,40 +81,19 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
       [X] Make watching cycle actually work, call eventEmitterCollect on each event (in main)
       [X] Monitor changes to _info.yaml files, update cache (in main)
 
-      [ ] Make basic data structures to store what change will affect what file (in ryver-copy)
-      [ ] Monitor that master entries in originFileURLs are not deleted (in ryver-copy)
+      [X] Make basic data structures to store what change will affect what file (in ryver-copy)
+      [X] Monitor that master entries in originFileURLs are not deleted (in ryver-copy)
       [ ] Write script that will re-filter files when an origin has changed (in ryver-copy)
 
       [ ] INITIAL MAIN TEST. CHANGES SHOULD NOW BE SUCCESSFULLY TRACKED
 
       [ ] Check for _config.yaml. If changed, rebuild _everything_ or simply quit
 
-      [ ] Make ths work for ryver-lister (no originFileURLs) by creating initial data structure
+      [ ] Make this work for ryver-lister (no originFileURLs) by creating initial data structure
           and then monitor changes and re-generating affected lists
 
   * [ ] Make default file structure for themes
   * [ ] Document everything properly on GitHub
-  * [ ] Write test file that needs to be rendered properly, use result as test
-  * [ ] At least make a simple basic web site using it
-
-
-CHANGER:
-Each module is responsible of re-filtering based on files touched.
-Each module, at generation time, will need to create data to make watching possible
-
-CHANGER: main
-In the main ryver.js file.
-* Metadata: Each file that is found during initial scan, is added to an hash
-* What: Each time a file within the hash is changed, it will re-filter it
-
-CHANGER: lister
-* Metadata: A hash of files names associated to each category/tag
-* What: Each time a file within the hash is changed, it will re-generate the
-  list for that category. So if a file tagged as "unix" is changed, the list for
-  "unix" is re-made
-
-CHANGER: lister-latest
-* Metadata: A hash of file names associated to what "latest" list they contain
 
 
 */
@@ -130,6 +109,7 @@ var processing = {
   config: {},
   mainInfo: {},
   yamlCache: {},
+  watch: false,
 };
 
 
@@ -300,6 +280,14 @@ var getFilters = exports.getFilters = function(){
 
 var getYamlCache = exports.getYamlCache = function(){
   return processing.yamlCache;
+}
+
+var getWatch = exports.getWatch = function(){
+  return processing.watch;
+}
+
+var setWatch = exports.setWatch = function( watch ){
+  processing.watch = watch;
 }
 
 
