@@ -112,7 +112,7 @@ function watchFiles(){
         var makeCaller = function( event ){
           return function( path ){
             var URL = path.substr( ryver.getSrc().length + 1 );
-            console.log('File', URL, 'has been', event, ':', path );
+            console.log('File', URL, 'had a file system event', event, 'on path', path );
 
             // Filter out events on the same files already in the queue
             queue = queue.filter( function( element) { return element.URL !== URL } );
@@ -165,9 +165,6 @@ function watchFiles(){
         function( err ){
           running = 0;
           if( err ) console.log("Error!", err );
-
-
-
         }
       )
 
@@ -176,25 +173,6 @@ function watchFiles(){
     }, 2000 );
 
   });
-
-
-
-
-
-  /*
-  Watch source directory
-  If anything changes, add it to an array
-  Once per second:
-    * Check if array is empty
-    * If it's NOT empty:
-      * If running == true, it's already running. Skip, will check again later
-      * running = true;
-      * Make a copy of array/Zap the array
-      * For each file emit an emitCollect signal and receive functions back
-      * Run all of the returned functions
-      * When ALL finished, set running = false
-*/
-
 
 }
 
