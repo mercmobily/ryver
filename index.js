@@ -83,11 +83,10 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
 
       [X] Make basic data structures to store what change will affect what file (in ryver-copy)
       [X] Monitor that master entries in originFileURLs are not deleted (in ryver-copy)
-      [ ] Write script that will re-filter files when an origin has changed (in ryver-copy)
-
-      [ ] INITIAL MAIN TEST. CHANGES SHOULD NOW BE SUCCESSFULLY TRACKED
-
-      [ ] Check for _config.yaml. If changed, rebuild _everything_ or simply quit
+      [X] Write script that will re-filter files when an origin has changed (in ryver-copy)
+      [X] Tidy up code in ryver-copy
+      [X] INITIAL MAIN TEST. CHANGES SHOULD NOW BE SUCCESSFULLY TRACKED
+      [X] Check for _config.yaml. If changed, rebuild _everything_ or simply quit
 
       [ ] Make this work for ryver-lister (no originFileURLs) by creating initial data structure
           and then monitor changes and re-generating affected lists
@@ -112,7 +111,6 @@ var processing = {
   watch: false,
 };
 
-
 // Public module variables
 // (Exported)
 
@@ -123,6 +121,12 @@ eventEC.onCollect( 'watch', function( cb ){
 
   var f = function( op, URL, cb ){
     vlog( "main: Operation", op, "on", URL );
+
+    // If _config.yaml is changed, it's game over
+    if( URL === "_config.yaml" ){
+      console.log("Config file changed, exiting execution..." );
+      process.exit( 0 );
+    }
 
     // It will only care about _info.yaml
     if( p.basename( URL ) !== '_info.yaml' ) {
@@ -310,6 +314,25 @@ var yamlURLsFromPath = exports.yamlURLsFromPath = function( filePath ){
 }
 
 
+var yamlFromFileURL = exports.yamlFromFileURL = function( originFileURL ){
+
+  var yamlFiles = yamlURLsFromPath( p.dirname( originFileURL ) );
+  var yamlCache = processing.yamlCache;
+
+  log("Processing origin file: ", originFileURL );
+
+  var finalYaml = {};
+  yamlFiles.forEach( function( yamlFile ){
+    if( yamlCache[ yamlFile ] ) enrichObject( finalYaml, yamlCache[ yamlFile ] );
+  });
+
+  vlog("Final YAML file to be applied:", finalYaml );
+
+  return finalYaml;
+
+}
+
+
 var callAllDone = exports.callAllDone = function( cb ){
 
   log();
@@ -458,7 +481,7 @@ var cloneObject = exports.cloneObject = function( obj ) {
 }
 
 
-// Enrich an object passing a list of extra paths
+// Enrich an object using DeepObject
 var enrichObject = exports.enrichObject = function( b, o ){
   var deepObj = new DO( b );
   for( var k in o ){
@@ -688,6 +711,9 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
     function( err ){
       if( err == 'stopped' ) return cb( null );
       if( err ) return cb( err );
+
+      // Zap toPostProcess now that everything has been post-processed
+      processing.toPostProcess = [];
 
       return cb( null );
     }
