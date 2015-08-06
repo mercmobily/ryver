@@ -88,14 +88,26 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
       [X] INITIAL MAIN TEST. CHANGES SHOULD NOW BE SUCCESSFULLY TRACKED
       [X] Check for _config.yaml. If changed, rebuild _everything_ or simply quit
 
+      [/] Redo watch subsystem
+        [ ] Make watch plugin
+        [ ] Move watching section from fileCopy to a watch plugin (will make info support varialbles)
+        [ ] Rename info support variables in watch plugin to something saner
+        [ ] Get rid of "watch" event, watch plugin will do the watching (do you NEED the queue?)
+        [ ] Publish "intent to refilter", get more files to refilter, extend list from module
+        [ ] Publish "file deleted" event, to allow modules to update their structures
+        [ ] Publish "refiltering done", with full list of re-filtered files
+        [ ] Change ryver-lister so that it stores the URLs rather than (huge) fileData
+        [ ] Change ryver-lister so that it does do the watching
+
       [ ] Make this work for ryver-lister (no originFileURLs) by creating initial data structure
           and then monitor changes and re-generating affected lists
 
+
+
   * [ ] Make default file structure for themes
   * [ ] Document everything properly on GitHub
-
-
 */
+
 // Private module variables
 // (Not exported)
 
