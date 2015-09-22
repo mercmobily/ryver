@@ -73,108 +73,6 @@ function serveFiles(){
   console.log("Site is available on http://localhost:" + port)
 }
 
-function watchFiles(){
-  console.log("Watching files and re-generating in real time" );
-
-  var watchers = [];
-  var queue = [];
-
-  ryver.eventEC.emitCollect( 'watch', function( err, watchersResults ){
-    if( err ) return cb( err );
-
-    // Gather the list of executors
-    watchersResults.onlyResults().forEach( function( watcher ) {
-      watchers.push( { name: watcher.name, executor: watcher.executor } );
-    });
-
-
-    // Run the watcher, adding an 'ignore' option for the destination directory
-    // in case it's within the source one
-    function stripTrailingSlash( str ){
-      return str.substr( -1 ) === '/' ? str.substr(0, str.length - 1 ) : str;
-    }
-    var chokidar = require('chokidar');
-    var fileWatcher = chokidar.watch( src, {
-      persistent: true,
-      ignored: stripTrailingSlash( ryver.getDst() ),
-    });
-
-    fileWatcher
-      .on('error', function(error) { log('Error happened', error); })
-      .on('ready', function() {
-
-        // I don't think I am interested in these ones
-        //watcher.on('addDir', function( path ) { log('Directory', path, 'has been added'); })
-        //watcher.on('unlinkDir', function( path ) { log('Directory', path, 'has been removed'); })
-        //watcher.on('raw', function(event, path, details) { log('Raw event info:', event, path, details); })
-
-        // Makes the returning function, depending on the event name
-        var makeCaller = function( event ){
-          return function( path ){
-            var URL = path.substr( ryver.getSrc().length + 1 );
-            console.log('File', URL, 'had a file system event', event, 'on path', path );
-
-            // Filter out events on the same files already in the queue
-            queue = queue.filter( function( element) { return element.URL !== URL } );
-
-            // Add element to th3e queue
-            queue.push( { op: event, URL: URL })
-          }
-        }
-
-        fileWatcher.on('add', makeCaller( 'add' ) );
-        fileWatcher.on('change', makeCaller( 'change' ) );
-        fileWatcher.on('unlink', makeCaller( 'unlink' ) );
-
-        ryver.log('Initial scan complete. Ready for changes.');
-      });
-
-    var running = false;
-    setInterval( function(){
-
-      if( !queue.length ) return;
-
-      if( running ){
-        ryver.log("There are changes but previous changes are still being dealt with, will wait!" );
-      }
-
-      // Destructive copy of queue onto the q variable
-      var q = queue.splice( 0, queue.length );
-
-      // For each element in the queue...
-      async.eachSeries(
-        q,
-        function( qEntry, cb ){
-          ryver.log("Dealing with entry in queue:", qEntry );
-          ryver.log("Number of watchers:", watchers.length );
-
-          // Goes through the watchers, and execute them
-          async.eachSeries(
-            watchers,
-            function( watcher, cb ){
-              ryver.log("Executing watcher:", watcher.name );
-
-              watcher.executor.call( this, qEntry.op, qEntry.URL, cb );
-            },
-            function( err ){
-              if( err ) return cb( err );
-              cb( null );
-            }
-          )
-        },
-        function( err ){
-          running = 0;
-          if( err ) console.log("Error!", err );
-        }
-      )
-
-
-
-    }, 2000 );
-
-  });
-
-}
 
 /**
 
@@ -252,6 +150,7 @@ ryver.readAndSetConfig( function( err, config ){
   // Take plugins from the command line (which takes precedence) or the config
   // file (as a last resort to change the default list);
   if( program.plugins && program.plugins != '' ){
+      //console.log( "IT IS: ", program.plugins );
     plugins = program.plugins.split( ',' );
   } else {
     if( config.plugins && config.plugins != '' ){
@@ -261,8 +160,10 @@ ryver.readAndSetConfig( function( err, config ){
 
   // Load all plugins, which are the module named 'ryver' plus the plugin name
   plugins.forEach( function( plugin ){
+    if( plugin === 'watcher') fatal( new Error( "To enable watcher, simply use -w or --watch" ) );
     require( 'ryver-' + plugin );
   });
+  if( program.watch ) var watcher = require( 'ryver-watcher' );
 
   // This will enrich ryver's internal variables
   // to pre-store the full list of all available filters
@@ -275,13 +176,9 @@ ryver.readAndSetConfig( function( err, config ){
       if( err ) return fatal( err.message, err.stack );
 
       // If the serve option is on, serve the files
-      if( program.serve) {
+      if( program.serve) serveFiles();
 
-        serveFiles();
-      }
-      if( program.watch ){
-        watchFiles();
-      }
+      if( watcher ) watcher.watchFiles();
 
       // That's it: end of story.
       //process.exit();

@@ -76,33 +76,29 @@ var magic = new Magic( mmm.MAGIC_MIME_TYPE );
   * [X] Write "serve" command that will serve a file structore (easy! Just a web server!)
   * [/] Write "watch" command that will watch file system and re-filter files as needed
       [X] Make function to make list of all possible _info.yaml from a path
-      [X] Make sure that all possible _info.yaml files are added as originFileURLs (in main)
-      [X] Add layout files as originFileURLs (in ryver-layout)
+      [X] Make sure that all possible _info.yaml files are added as originDependencies (in main)
+      [X] Add layout files as originDependencies (in ryver-layout)
       [X] Make watching cycle actually work, call eventEmitterCollect on each event (in main)
       [X] Monitor changes to _info.yaml files, update cache (in main)
 
       [X] Make basic data structures to store what change will affect what file (in ryver-copy)
-      [X] Monitor that master entries in originFileURLs are not deleted (in ryver-copy)
+      [X] Monitor that master entries in originDependencies are not deleted (in ryver-copy)
       [X] Write script that will re-filter files when an origin has changed (in ryver-copy)
       [X] Tidy up code in ryver-copy
       [X] INITIAL MAIN TEST. CHANGES SHOULD NOW BE SUCCESSFULLY TRACKED
       [X] Check for _config.yaml. If changed, rebuild _everything_ or simply quit
 
       [/] Redo watch subsystem
-        [ ] Make watch plugin
-        [ ] Move watching section from fileCopy to a watch plugin (will make info support varialbles)
-        [ ] Rename info support variables in watch plugin to something saner
-        [ ] Get rid of "watch" event, watch plugin will do the watching (do you NEED the queue?)
-        [ ] Publish "intent to refilter", get more files to refilter, extend list from module
-        [ ] Publish "file deleted" event, to allow modules to update their structures
-        [ ] Publish "refiltering done", with full list of re-filtered files
-        [ ] Change ryver-lister so that it stores the URLs rather than (huge) fileData
-        [ ] Change ryver-lister so that it does do the watching
+        [X] Make watcher plugin
+        [X] Add plugin as very last if right command line. Not possible to specify in list
+        [X] Move watching section from fileCopy to a watch plugin (will make info support varialbles)
+        [X] Rename info support variables in watch plugin to something saner
+        [X] Check that we still need the "watch" event and the queue
+        [ ] Publish "alsoRefilter" passing list of URLs just refiltered, returning more urls to filter
+        [ ] Publish "doneRefiltering", with full list of re-filtered files
 
-      [ ] Make this work for ryver-lister (no originFileURLs) by creating initial data structure
-          and then monitor changes and re-generating affected lists
-
-
+        [ ] Change ryver-lister so that it returns proper extra things to filter
+        [ ] MAYBE do filter_include: https://github.com/leizongmin/tinyliquid/issues/33#issuecomment-118792483
 
   * [ ] Make default file structure for themes
   * [ ] Document everything properly on GitHub
@@ -143,7 +139,7 @@ eventEC.onCollect( 'watch', function( cb ){
     // It will only care about _info.yaml
     if( p.basename( URL ) !== '_info.yaml' ) {
       vlog("main-info-watch: Ignoring file since it's not called _info.yaml");
-      return cb( null );s
+      return cb( null );
     }
 
     // Make up filePath and fileNameAndExt
@@ -766,7 +762,7 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
 
           mimetype: magic,
           processedBy: [],
-          originFileURLs: [],
+          originDependencies: [],
           originMasterFileURL: sourceURL ?  sourceURL : null,
         },
         initialInfo: cloneObject( info ),
@@ -775,9 +771,9 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
         contents: fileContentsAsBuffer.toString(),
       };
 
-      // Add all of the info files to originFileURLs
+      // Add all of the info files to originDependencies
       yamlURLsFromPath( fileData.system.filePath ).forEach( function( URL ){
-        fileData.system.originFileURLs.push( URL );
+        fileData.system.originDependencies.push( URL );
       });
 
       cb( null, fileData );
@@ -921,8 +917,8 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
             makeFileData( p.join( filePath, fileNameAndExt ), filePath, fileNameAndExt, null, info, function( err, fileData ){
               if( err ) return cb( err );
 
-              // Set the master (first entry) originFileURL
-              fileData.system.originFileURLs.push( p.join( filePath, fileNameAndExt ) );
+              // Add the file itself to the list of origins since it IS a file on the file system
+              //fileData.system.originDependencies.push( p.join( filePath, fileNameAndExt ) );
 
               log( "Basic fileData created" );
               vlog( function(){
@@ -933,6 +929,11 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
 
               filter( fileData, function( err ){
                 if( err ) return cb( err );
+
+                vlog( function(){
+                  vlog( "fileData after filtering: ", trimFileData( fileData ) );
+                });
+
 
                 cb( null );
               })
