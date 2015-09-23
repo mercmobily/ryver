@@ -139,14 +139,16 @@ if( program.watch ) ryver.setWatch( true );
  */
 
 // Default plugins
-var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'lister', 'template-liquid', 'template-ejs', 'filecopy'  ];
+//var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'lister', 'template-liquid', 'template-ejs', 'filecopy'  ];
+var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'template-liquid', 'template-ejs', 'filecopy'  ];
+
 
 // Add plugin from "master" _info.yaml file
 
 ryver.readAndSetConfig( function( err, config ){
   if( err ) fatal( err, err.stack );
 
-  var plugins;
+  //var plugins;
   // Take plugins from the command line (which takes precedence) or the config
   // file (as a last resort to change the default list);
   if( program.plugins && program.plugins != '' ){
@@ -157,6 +159,8 @@ ryver.readAndSetConfig( function( err, config ){
       plugins = config.plugins.split( ',' );
     }
   }
+
+  ryver.log("Plugins to apply:", plugins.join(',') );
 
   // Load all plugins, which are the module named 'ryver' plus the plugin name
   plugins.forEach( function( plugin ){
@@ -180,8 +184,6 @@ ryver.readAndSetConfig( function( err, config ){
 
       if( watcher ) watcher.watchFiles();
 
-      // That's it: end of story.
-      //process.exit();
     });
   })
 });
