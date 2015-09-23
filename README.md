@@ -1,6 +1,6 @@
 # ryver
 
-Ryver is the most powerful, extensible web site generator available. It's blazing fast, written in NodeJS, and using Yaml to configure how it works. You can use it to create powerful one-page web sites easily, and extend it adding simple hooks and filters.
+Ryver is the most powerful, extensible web site generator available. It's blazing fast, written in NodeJS, and using Yaml to configure how it works. You can use it to create powerful template-based static websites easily, and extend it adding simple hooks and filters.
 
 ## Using Ryver
 
@@ -48,7 +48,7 @@ By running `ryver src` again, you will see that a new file, `hello_world.html`, 
 
 The Markdown processing obviously worked. You probably noticed that `_info.yaml` wasn't copied over: that is because _all files and directories starting with an underscore are ignored by the filters_.
 
-The `markup-markdown` filter will make sure that any file with the extension ``.md` will be processed as Markdown.
+The `markup-markdown` filter will make sure that any file with the extension `.md` will be processed as Markdown.
 
 What you learned in this chapter:
 
@@ -58,6 +58,13 @@ What you learned in this chapter:
 * The file `_info.yaml` is important in Ryver since it tells Ryver how what to do with files in that directory _as well as any nested directory_.
 * By having `filters: markup-markdown` in your `_info.yaml`, you are telling Ryver that any file with the extenion `.md` will need to be filtered as Markdown
 
+## The frontmatter
+
+Every good pro
+
+## Ryver plugins
+
+When you use Ryver, you are actually using it with
 
 # Developing with Ryver
 
