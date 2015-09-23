@@ -437,6 +437,7 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
     async.eachSeries(
       [
         'beforePreProcessFilters',
+        // ...front matter... 
         'afterPreProcessFilters',
         'beforeFilters',
         'afterFilters',
