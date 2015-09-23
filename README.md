@@ -2,6 +2,14 @@
 
 Ryver is the most powerful, extensible web site generator available. It's blazing fast, written in NodeJS, and using Yaml to configure how it works. You can use it to create powerful template-based static websites easily, and extend it adding simple hooks and filters.
 
+## Install Ryver
+
+To install Ryver, simply type:
+
+    npm install ryver
+
+And you should be good to go.
+
 ## Using Ryver
 
 This guide will use you through every single possible way of using Ryver. It will start with its simple usage using its default plugins, up to the most advanced uses.
@@ -12,19 +20,19 @@ First of all, create two directories called `src` and `_site` by running `mkdir 
 
 At this point, you are good to go. Run:
 
-    river src
+    ryver src
 
 The result (which is... nothing) will be placed in `_site`.
 
 `_site` happens to be the default destination directory: you can change it to whatever you like by providing a second parameter:
 
-   river src somewhere
+   ryver src somewhere
 
 In this case, `somewhere` will contain the result of your hard work.
 
 Note that you can set, as a destination directory, somewhere _within_ `src` like so:
 
-    river src src/somewhere
+    ryver src src/somewhere
 
 This won't bother Ryver -- that is, Ryver won't scan `src/somewhere` as part of its input to generate your site.
 
@@ -40,7 +48,7 @@ Place a file called `_info.yaml` into your `src` folder, so that it contains:
 
     filters: markup-markdown
 
-This _info directive_ will apply to every file in that directory, as well as any file in nested directory.
+This _info directive_ will apply to every file in that directory, as well as any file in nested directories.
 
 By running `ryver src` again, you will see that a new file, `hello_world.html`, was created and containe:
 
@@ -49,6 +57,8 @@ By running `ryver src` again, you will see that a new file, `hello_world.html`, 
 The Markdown processing obviously worked. You probably noticed that `_info.yaml` wasn't copied over: that is because _all files and directories starting with an underscore are ignored by the filters_.
 
 The `markup-markdown` filter will make sure that any file with the extension `.md` will be processed as Markdown.
+
+The `markup-markdown` filter is provided by the plugin `ryver-markup-markdown`.
 
 What you learned in this chapter:
 
@@ -60,11 +70,92 @@ What you learned in this chapter:
 
 ## The frontmatter
 
-Every good pro
+Ryver allows you to define a frontmatter for every file. The frontmatter allows you to define some variables which will only apply to that page.
+
+The variables you set might be for your own use (to be displayed in the templates) or could be useful to Ryver's plugins to know how to do their jobs.
+
+For example, you might decide to turn off `filters` for a specific file; create a file called `not_filtered.md` like so:
+
+    ---
+    filters:
+    ---
+    # Hello boring world
+
+After running `ryver src`, you will see that there is an extra file in the `_site` directory, but it's called `not_filtered.md` -- and it's still plain boring Markdown (it didn't get filtered). Notice however that the frontmatter _did_ get filtered out of the end result.
+
+**NOTE**: Remember to wipe out the `_site` directory as running `ryver src` doesn't delete old files left over by previous runs.
+
+The variables in the frontmatter have priority over the ones defined in `_info.yaml`. Since `filters` is set to empty in the frontmatter, the file will not get filtered.
+
+The frontmatter ability is provided by the plugin `ryver-frontmatter`.
+
+What you learned in this chapter:
+
+* Files can have a _frontmatter_, which can be used to change user variables, as well as module variables which will change the way a file will get filtered.
+* Variables in the frontmatter have priority over variables set in `_info.yaml`.
+
+## Liquid template and more variables
+
+One of Ryver's filters is `template-liquid`, which allows you to process Liquid directives within your file.
+You can activate Liquid for a specific file using its frontmatter. Imagine you have:
+
+    ---
+    title: Hello world!
+    population: 6000000
+    postProcessFilters: template-liquid
+    ---
+    # {{info.title}}
+
+    Your population is {{info.population}}
+
+Running `ryver src` will output the following file:
+
+    <h1 id="hello-world-">Hello world!</h1>
+    <p>Your population is 6000000</p>
+
+The `template-liquid` filter is provided by the plugin `ryver-template-liquid`. While it may seem silly to add variables and then add them to the templates. However, their importance is more evident when you have add more plugin to the mix, since plugins can create interesting (and useful!) variables.
+
+What you learned in this chapter:
+
+* You can enable the `template-liquid` filter by adding it to the `postProcessFilters` variable, enabling powerful templating based on variables.
+* Variables in the frontmatter are accessible with in the `info.` namespace (or the `info` object)
+* One of the things plugins do is provide extra variables for you to use
+
+## Nested directories and variables
+
+It's important now to take a deep breath and realise the power of Ryver and it's variable system.
+
+# Filtering lifecycle
+
+
+
+# Layout
+
+TODO
+
+# Paging
+
+TODO
+
+# Landing
+
+TODO
+
+# Lister
+
+The most powerful plugin is Ryver is `lister`, which allows you to create a number of categories, and then "attach" any post to any categories amongst the available ones.
+
+The most common example is the possibility of wanting `tags` and `category` for your posts. This means that a post could have something like this it its frontmatter:
+
+---
+
+---
 
 ## Ryver plugins
 
 When you use Ryver, you are actually using it with
+
+TODO
 
 # Developing with Ryver
 
