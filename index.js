@@ -12,96 +12,9 @@ var Magic = mmm.Magic;
 var magic = new Magic( mmm.MAGIC_MIME_TYPE );
 
 /* TODO:
-  * [X] Write function that goes through every file
-  * [X] Allow plugin functions to process, sequentially, a file
-  * [X] Write function that will process a file looking for special tags
-  * [X] Implement some basic tags
-  * [X] Add event when file is processed
-  * [X] Add event when _all_ files are processed
-  * [X] Use mmmagic to find out file type, add it to file data
-  * [X] Switch to YAML for info
-  * [X] Load front matter using YAML, same syntax as Jekyll
-  * [X] Do not apply any filtering to files starting with _. Maybe completely ignore such files
-  * [X] Make info.yaml invisible, and make it "inherit" the prevous directory's values
-  * [X] Add way to prioritise plugins and filters
-  * [X] Layout templates
-      [X] Add filter to add header andfooter to file
-      [X] Add filter that will apply a template and change file name and ext
-      [X] Implement markdown, change extension and mime type to info
-  * [X] Rationalise variable and attribute names, structure of info
-  * [X] Add defaultPreFilters and defaultPostFilters to info
-  * [X] Tidy up code as singleton object
-  * [X] Change it so that there is only ONE parameter passed to each function
-  * [X] Add pre-processing and post-processing, move frontMatter to pre-processing, making
-        flters configurable per-file
-  * [X] Write enrichObject function that recursively enrich an object, use it in both cases (clone, enrich)
-  * [X] Check scope of info, make sure it's cloned in the right spots
-  * [X] Turn it into a command-line tool and actually allow input/output dirs, respect them
-  * [X] Create plugins file structure, include core ones, allow non-core ones
-  * [X] Add command line/config to add non-core plugin
-  * [X] Write fancy and nice logs when things happen, allow it to be verbose
-  * [X] Add filter to copy files over to destination directory respecting name/ext
-  * [X] Write plugin to add an "intro" page for every page (first injection)
-  * [X] Give option to have landing page in a "main" folder so that other filters can use it.
-  * [X] Move "landing" to its own module since it shouldn't be part of "copying"
-  * [X] Provide the including file's INFO to the landing file before rendering
-  * [X] Take src path out when copying file
-  * [X] Delete tags Reintroduce "tags". Own filter with filter's API? Main module?
-  * [X] Make `include` work with liquid o include another file, maybe rendered.
-  * [X] Make function that reads config file and sets config, use it instead of "master" _info.yaml
-  * [X] Add beforeDelayedPostProcess and afterDelayedPostProcess events, and use them in sorting
-  * [X] Make sure sorting of tags happens a the right step
-  * [X] Write lister to have list of 10 latest posts
-  * [X] Change variable names from "group" to "list"
-  * [X] Add before- and after- hooks, make frontmatter and lister use them to prevent pollution
-  * [X] Check that plugins are in the right spot (config file) and are _overwritten_
-  * [X] Check that I actually need to return fileInfo all the bloody time in filtering
-  * [X] Rewrite filtering infrastructure so that a filter can "fork" filtering whenever
-  * [X] Make event with "allDone", when _all_ filtering is done
-  * [X] Fix issue: fileData must have a relative path without getSrc. fileData needs to be created
-        in readdir so that filePath is relative. Then it's absolutised by filecopy.
-  * [X] Standardise the way filePath/fileName/fileExt/fileNameAndExt are used
-
-  * [X] Write lister to write paginating file with list of entries
-  * [X] Make sane variables for paginating tags/categories
-  * [X] Make pager variable with the list of pages pre-packaged, so that the pager "scrolls"
-        keeping the current page in the middle unless at left or right edge
-
-  * [X] Write plugin that will page single-page output safely.
-  * [X] Change pager plugin so that it has pagerData the same as the lister
-  * [X] Change logging so that it's not dead slow even though fileData is cloned and trimmed
-  * [X] Write EJS filter, same as liquid but with real Javascript
-  * [X] Face (and fix) issue where a filter will escape another filter's needed stuff
-
-  * [X] Write "serve" command that will serve a file structore (easy! Just a web server!)
-  * [/] Write "watch" command that will watch file system and re-filter files as needed
-      [X] Make function to make list of all possible _info.yaml from a path
-      [X] Make sure that all possible _info.yaml files are added as originDependencies (in main)
-      [X] Add layout files as originDependencies (in ryver-layout)
-      [X] Make watching cycle actually work, call eventEmitterCollect on each event (in main)
-      [X] Monitor changes to _info.yaml files, update cache (in main)
-
-      [X] Make basic data structures to store what change will affect what file (in ryver-copy)
-      [X] Monitor that master entries in originDependencies are not deleted (in ryver-copy)
-      [X] Write script that will re-filter files when an origin has changed (in ryver-copy)
-      [X] Tidy up code in ryver-copy
-      [X] INITIAL MAIN TEST. CHANGES SHOULD NOW BE SUCCESSFULLY TRACKED
-      [X] Check for _config.yaml. If changed, rebuild _everything_ or simply quit
-
-      [/] Redo watch subsystem
-        [X] Make watcher plugin
-        [X] Add plugin as very last if right command line. Not possible to specify in list
-        [X] Move watching section from fileCopy to a watch plugin (will make info support varialbles)
-        [X] Rename info support variables in watch plugin to something saner
-        [X] Check that we still need the "watch" event and the queue
-        [ ] Publish "alsoRefilter" passing list of URLs just refiltered, returning more urls to filter
-        [ ] Publish "doneRefiltering", with full list of re-filtered files
-
-        [ ] Change ryver-lister so that it returns proper extra things to filter
-        [ ] MAYBE do filter_include: https://github.com/leizongmin/tinyliquid/issues/33#issuecomment-118792483
-
+  * [ ] Change ryver-lister so that it returns proper extra things to filter rather than "the lot"
+  * [ ] MAYBE do filter_include: https://github.com/leizongmin/tinyliquid/issues/33#issuecomment-118792483
   * [ ] Make default file structure for themes
-  * [ ] Document everything properly on GitHub
 */
 
 // Private module variables
