@@ -61,7 +61,7 @@ function serveFiles(){
     var done = finalhandler( req, res)
     serve( req, res, function( err ){
       if( err ){
-        if( err.status === 404 ) console.err( "File not found:", err.path );
+        if( err.status === 404 ) console.log( "File not found:", err.path );
         else console.log( "Server error:", err );
       }
       done( err );
