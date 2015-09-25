@@ -437,7 +437,7 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
     async.eachSeries(
       [
         'beforePreProcessFilters',
-        // ...front matter... 
+        // ...front matter...
         'afterPreProcessFilters',
         'beforeFilters',
         'afterFilters',
@@ -682,8 +682,13 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
         initialInfo: cloneObject( info ),
         info: cloneObject( info ),
         initialContents: fileContentsAsBuffer,
-        contents: fileContentsAsBuffer.toString(),
+        contents: fileContentsAsBuffer,
       };
+
+      // Convert to string if it's text-based mime type
+      // This will leave binary data (images, etc.) intact
+      if( fileData.system.mimetype.split('/')[0] === 'text')
+        fileData.contents = fileData.contents.toString();
 
       // Add all of the info files to originDependencies
       yamlURLsFromPath( fileData.system.filePath ).forEach( function( URL ){
