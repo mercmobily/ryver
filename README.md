@@ -1,4 +1,4 @@
-# ryver
+# Ryver
 
 Ryver is the most powerful, extensible web site generator available. It's blazing fast, written in NodeJS, and using Yaml to configure how it works. You can use it to create powerful template-based static websites easily, and extend it adding simple hooks and filters.
 
@@ -6,9 +6,9 @@ Ryver is the most powerful, extensible web site generator available. It's blazin
 
 To install Ryver, simply type:
 
-    npm install ryver
+    npm install -g ryver
 
-And you should be good to go.
+And you should be good to go. After installation, you will end up with e "ryver" executable ready to work its magic.
 
 ## Using Ryver
 
@@ -50,7 +50,7 @@ Place a file called `_info.yaml` into your `src` folder, so that it contains:
 
 This _info directive_ will apply to every file in that directory, as well as any file in nested directories.
 
-By running `ryver src` again, you will see that a new file, `hello_world.html`, was created and containe:
+By running `ryver src` again, you will see that a new file, `hello_world.html`, was created and contained:
 
     <h1 id="hello-world-">Hello world!</h1>
 
@@ -58,7 +58,7 @@ The Markdown processing obviously worked. You probably noticed that `_info.yaml`
 
 The `markup-markdown` filter will make sure that any file with the extension `.md` will be processed as Markdown.
 
-The `markup-markdown` filter is provided by the plugin `ryver-markup-markdown`.
+The `markup-markdown` filter is provided by the plugin `ryver-markup-markdown`, which will filter every file with extension `.md` into HTML, as well as renaming them to `.html`
 
 What you learned in this chapter:
 
@@ -66,7 +66,7 @@ What you learned in this chapter:
 * `ryver src src/_site` is allowed (files in `src/_site` will not be considered part of the input)
 * Without any filtering instructions, files are simply copied over -- except the ones starting with `_` (underscore), which are ignored
 * The file `_info.yaml` is important in Ryver since it tells Ryver how what to do with files in that directory _as well as any nested directory_.
-* By having `filters: markup-markdown` in your `_info.yaml`, you are telling Ryver that any file with the extenion `.md` will need to be filtered as Markdown
+* By having `filters: markup-markdown` in your `_info.yaml`, you are telling Ryver that any file with the extenion `.md` will need to be filtered as Markdown and renamed to `.html`.
 
 ## The frontmatter
 
@@ -113,7 +113,9 @@ Running `ryver src` will output the following file:
     <h1 id="hello-world-">Hello world!</h1>
     <p>Your population is 6000000</p>
 
-The `template-liquid` filter is provided by the plugin `ryver-template-liquid`. While it may seem silly to add variables and then add them to the templates. However, their importance is more evident when you have add more plugin to the mix, since plugins can create interesting (and useful!) variables.
+Note that the file was filtered by Markdown because of `filters: markup-markdown` in the `_info.yaml` file in the directory.
+
+The `template-liquid` filter is provided by the plugin `ryver-template-liquid`. It may seem silly to add variables and then add them to the templates. However, their importance is more evident when you add more plugin to the mix, since plugins can (and will) create interesting (and useful!) variables.
 
 What you learned in this chapter:
 
@@ -123,11 +125,51 @@ What you learned in this chapter:
 
 ## Nested directories and variables
 
-It's important now to take a deep breath and realise the power of Ryver and it's variable system.
+It's important now to take a deep breath and realise the power of Ryver and its variable system. When you have a `_info.yaml` file in a directory, the variables set there will be available to every filtered file in that directory, as well as _every filtered file in any nested directory_.
+
+This means that for every directory you can have a "master" `_info.yaml` file, where you set variables to sane values, but then you can redifine _some_ (of all) of the values in sub-directories creating a `_info.yaml` file inside each one. And then, again, you can have files defining variables themselves using their own frontmatter.
+
+This implies that you will want the _generic_ settings for variables in the site's "main" `_info.yaml` file, and then get more and more specific as you go deeper into the file system.
+
+What you learned in this chapter:
+
+* Variables set in `_info.yaml` files will influence variables for every filtered file in that directory and in any subsirectory. Frontmatter in files will also redefine variables on a per-file basis.
 
 # Filtering lifecycle
 
+At this point, you saw two cases where filtering was added: setting the `filters` variable, and setting the `postProcessFilters` variable.
 
+The basics of Ryver are simple: every file is filtered by a number. Filters are made available by _plugins_. By default, all plugins available in stock Ryver are loaded (although this can be changed).
+
+You can decide what filters will apply to a file by setting the following variables:
+
+* `preProcessFilters`.
+* `preFilters`.
+* `filters`.
+* `postFilters`.
+* `postProcessFilters`.
+
+Generally speaking, you can place a filter anywhere here. However, some filters might need to be placed in specific posts. For example, you want `template-liquid` to have some action only when _all_ variables have been set by other plugins. The only time when you are _guaranteed_ that that will have happen is at `postProcessfilters` time.
+
+The stages are there mainly for grouping convenience. You can use all of them, or only a subset depending on how you want to organise your site. For example, it's common to only really use three of them, and set something like this in your `_info.yaml` file:
+
+    preFilters:
+    filters: markup-markdown
+    postFilters: layout
+
+This will set a general behaviour you want nearly every page to have. I haven't yet explained the `layout` filter, but its meaning is pretty straightforward (it will sandwitch the contents in a template). Generally speaking, every HTML page will have a layout, and it will be filtered as Markdown first (before being placed in the layout, obviously).
+
+For some inner pages, you might want to add more filters but still have `layout` there. So, in an inner directory, you might set:
+
+    filters: markup-markdown,pager
+
+This will only affect pages within that subdirectory, and the `postFilters` variable will be untouched. So, `layout` will still be applied, long with `markup-markdown` and `pager` -- which is what you want.
+
+Basically, the five different stages are there to help you group what filters apply where. The scenario above is the most common one, but having five different groups five you the freedom to deal with the most complex scenarios.
+
+# Ryver's `_config.yaml` file
+
+If you place a file called `_config.yaml` in Ryver,
 
 # Layout
 
