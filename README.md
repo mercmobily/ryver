@@ -8,7 +8,7 @@ To install Ryver, simply type:
 
     npm install -g ryver
 
-And you should be good to go. After installation, you will end up with e "ryver" executable ready to work its magic.
+And you should be good to go. After installation, you will end up with a "ryver" executable ready to work its magic.
 
 ## Using Ryver
 
@@ -135,13 +135,13 @@ What you learned in this chapter:
 
 * Variables set in `_info.yaml` files will influence variables for every filtered file in that directory and in any subsirectory. Frontmatter in files will also redefine variables on a per-file basis.
 
-# Filtering lifecycle
+## Filtering lifecycle
 
 At this point, you saw two cases where filtering was added: setting the `filters` variable, and setting the `postProcessFilters` variable.
 
-The basics of Ryver are simple: every file is filtered by a number. Filters are made available by _plugins_. By default, all plugins available in stock Ryver are loaded (although this can be changed).
+The basics of Ryver are simple: every file is filtered by the specified filters. Filters are made available by _plugins_. By default, all plugins available in stock Ryver are loaded (although this can be changed).
 
-You can decide what filters will apply to a file by setting the following variables:
+You can decide what filters will apply to a file by setting the following phases:
 
 * `preProcessFilters`.
 * `preFilters`.
@@ -149,7 +149,7 @@ You can decide what filters will apply to a file by setting the following variab
 * `postFilters`.
 * `postProcessFilters`.
 
-Generally speaking, you can place a filter anywhere here. However, some filters might need to be placed in specific posts. For example, you want `template-liquid` to have some action only when _all_ variables have been set by other plugins. The only time when you are _guaranteed_ that that will have happen is at `postProcessfilters` time.
+Generally speaking, you can place a filter anywhere here. However, some filters might need to be placed in specific spots. For example, you want `template-liquid` to have some action only when _all_ variables have been set by other plugins. The only time when you are _guaranteed_ that that will have happen is at `postProcessfilters` time.
 
 The stages are there mainly for grouping convenience. You can use all of them, or only a subset depending on how you want to organise your site. For example, it's common to only really use three of them, and set something like this in your `_info.yaml` file:
 
@@ -157,33 +157,42 @@ The stages are there mainly for grouping convenience. You can use all of them, o
     filters: markup-markdown
     postFilters: layout
 
-This will set a general behaviour you want nearly every page to have. I haven't yet explained the `layout` filter, but its meaning is pretty straightforward (it will sandwitch the contents in a template). Generally speaking, every HTML page will have a layout, and it will be filtered as Markdown first (before being placed in the layout, obviously).
+This will set a general behaviour you want nearly every page to have. I haven't yet explained the `layout` filter, but its meaning is pretty straightforward (it will place the contents of each file into a specified template). Generally speaking, every HTML page will have a layout, and it will be filtered as Markdown first (before being placed in the layout, obviously).
 
 For some inner pages, you might want to add more filters but still have `layout` there. So, in an inner directory, you might set:
 
     filters: markup-markdown,pager
 
-This will only affect pages within that subdirectory, and the `postFilters` variable will be untouched. So, `layout` will still be applied, long with `markup-markdown` and `pager` -- which is what you want.
+This will only affect pages within that subdirectory, and the `postFilters` variable will be untouched. So, `layout` will still be applied, along with `markup-markdown` and `pager` -- which is what you want.
 
 Basically, the five different stages are there to help you group what filters apply where. The scenario above is the most common one, but having five different groups five you the freedom to deal with the most complex scenarios.
 
-# Ryver's `_config.yaml` file
+The only special phase is `postProcessFilters`: filters will be able to run once _all_ of the variables set by other plugins are fully set (which is why `template-liquid`, which is often used for variable substitution, is placed there).
 
-If you place a file called `_config.yaml` in Ryver,
+What you learned in this chapter:
 
-# Layout
+* You can plce filters in whichever phase you like, depending on how you decide to group them
+* All phases are equal, except `postProcessFilters` which guarantees that all variables set by plugins are set.
+* You should use grouping to simplify how you redefine filters according to filter definition in `_info.yaml`. You will usually put the most common case in the root `_info.yaml`, and then redefine specific groups in inner directories.
+
+## Ryver's `_config.yaml` file
+
+Some of Ryver's plugins are configurable. If you place a file called `_config.yaml` in Ryver,
+
+
+## Layout
 
 TODO
 
-# Paging
+## Pager
 
 TODO
 
-# Landing
+## Landing
 
 TODO
 
-# Lister
+## Lister
 
 The most powerful plugin is Ryver is `lister`, which allows you to create a number of categories, and then "attach" any post to any categories amongst the available ones.
 
@@ -197,7 +206,13 @@ The most common example is the possibility of wanting `tags` and `category` for 
 
 When you use Ryver, you are actually using it with
 
+## Ryver watcher
+
 TODO
+
+## Ryver sites
+
+These filters allow you to create powerful, unhackable static sites.
 
 # Developing with Ryver
 
