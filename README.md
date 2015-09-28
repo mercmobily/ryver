@@ -54,7 +54,7 @@ By running `ryver src` again, you will see that a new file, `hello_world.html`, 
 
     <h1 id="hello-world-">Hello world!</h1>
 
-The Markdown processing obviously worked. You probably noticed that `_info.yaml` wasn't copied over: that is because _all files and directories starting with an underscore are ignored by the filters_.
+The Markdown processing obviously worked. You probably noticed that `_info.yaml` wasn't copied over: that is because _all files and directories starting with an underscore are not filtered, and therefore not copied over_.
 
 The `markup-markdown` filter will make sure that any file with the extension `.md` will be processed as Markdown.
 
@@ -115,7 +115,7 @@ Running `ryver src` will output the following file:
 
 Note that the file was filtered by Markdown because of `filters: markup-markdown` in the `_info.yaml` file in the directory.
 
-The `template-liquid` filter is provided by the plugin `ryver-template-liquid`. It may seem silly to add variables and then add them to the templates. However, their importance is more evident when you add more plugin to the mix, since plugins can (and will) create interesting (and useful!) variables.
+The `template-liquid` filter is provided by the plugin `ryver-template-liquid`. It may seem silly to add variables and then reference them in the templates directly like I did. However, their importance is more evident when you add more plugin to the mix, since plugins can (and will) create interesting (and useful!) variables.
 
 What you learned in this chapter:
 
@@ -211,19 +211,19 @@ This error is there because Ryver expects, by default, to find `page.html` (the 
 
 So, create a `_layouts` directory in the root of your source directory, and place a `page.html` file as follows:
 
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
-    "http://www.w3.org/TR/html4/strict.dtd">
-<html lang="en">
-  <head>
-    <meta http-equiv="content-type" content="text/html; charset=utf-8">
-    <title>The title!</title>
-  </head>
-  <body>
+    <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+        "http://www.w3.org/TR/html4/strict.dtd">
+    <html lang="en">
+      <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>The title!</title>
+      </head>
+      <body>
 
-<!--contents-->
+    <!--contents-->
 
-  </body>
-</html>
+      </body>
+    </html>
 
 Note that this is a minimalistic HTML file, with a placeholder -- `<!--contents-->` that will instruct Ryver where to place the filtered page.
 
@@ -356,7 +356,7 @@ After `layout`, the contents will be placed accodding to the placeholder in `pag
       </body>
     </html>
 
-After `template-liquid`, all of the `liquid` directives will be executed, including `{info.title}`, and the contents will be transformed into:
+After `template-liquid`, all of the `liquid` directives will be executed, including `{{info.title}}`, and the contents will be transformed into:
 
     <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
         "http://www.w3.org/TR/html4/strict.dtd">
