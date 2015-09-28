@@ -258,7 +258,7 @@ It's important for the directory name to start with an underscore, so that it wo
 
 What you learned in this chapter:
 
-* You can filter contents though the `layout` filter, which will place the contents within a template with ``postFilters: layout` in your frontmatter
+* You can filter contents though the `layout` filter, which will place the contents within a template with `postFilters: layout` in your frontmatter
 * In order for filtering to do anything, you need to have a `layout` variable set (on a per-directory bases, in a `_info.yaml` file, or in your frontmatter). E.g. `layout: page.html` will use the template in `_includes/page.html`
 * The template file will be just text, with the special placeholder `<!--contents-->` which will be replaced with the contents of the file
 
@@ -372,7 +372,7 @@ After `template-liquid`, all of the `liquid` directives will be executed, includ
       </body>
     </html>
 
-As you can see, _the order in which the filters are executed actually matters_. If you ran the `template-liquid` filter before `layout`, the variable `{{info.title}}` would never be resolved. If you ran `markup-markdown` after `layout`, the markdown filter will not work since it doesn't compile anything within a `<div>` (which would be the case, since the contents would already be placed in the layout).
+As you can see, _the order in which the filters are executed actually matters_. If you ran the `template-liquid` filter before `layout`, the variable `{{info.title}}` would never be resolved. If you ran `markup-markdown` after `layout`, the markdown filter would not work since it wouldn't compile anything within a `<div>` (which would be the case, since the contents would already be placed in the layout).
 
 The order in which you should execute the filters is the natural order in which you would process the contents. This will become more evident with the next two filters I will explain.
 
@@ -440,7 +440,7 @@ While having split files is very useful, what's really crucial is being able to 
 * The name of the "previous" page
 * An array with all the available pages, where each element has a page number, a page name, and a flag set to `true` if the page in the pager is the same as the displayed one
 
-Luckily, all of this information is made available by the `pager` plugin to every single page, through the followng variables:
+Luckily, all of this information is made available by the `pager` plugin to every single page, through the followng variables (in `info.pagerData`):
 
 * `pageNumber`
 * `totalPages`
@@ -451,31 +451,91 @@ Luckily, all of this information is made available by the `pager` plugin to ever
   *  `pageName`
   *  `thisPage`
 
+Using liquid, you can easily create a powerful pager with something like this to show a working, themable pager:
 
+    <!-- This loops through the paginated posts -->
+    <div class="pager">
+      <ul>
+      {% for page in info.pagerData.pager %}
+        {% if page.thisPage %}
+        <li><p class="this_page">{{page.pageNumber}}</p></li>
+        {% else %}
+        <li><a href="{{page.pageName}}{{system.fileExt}}" class="this_page">{{page.pageNumber}}</a></li>
+        {% endif %}
+      {% endfor %}
+      </ul>
+    </div>
 
+The code is very basic: it goes through all of the elements in info.pagerData.pager, and provides either a link to the page, or simply a page number (in case you are viewing that very page).
 
+Note the use of `{{system.fileExt}}` to make up the link with the page's name plus the page's extenson.
+Making _previous_ and _next_ links is just as easy:
 
+    <!-- Prev and Next links -->
+    <div class="pagination">
 
+      <!-- Prev link -->
+      {% if info.pagerData.prevPageName %}
+      <a href="{{ info.pagerData.prevPageName }}{{system.fileExt}}" class="previous">Previous</a>
+      {% else %}
+      <span class="previous">Previous</span>
+      {% endif %}
+
+      <!-- page number -->
+      <span class="page_number ">Page: {{ info.pagerData.pageNumber }} of {{ info.pagerData.totalPages }}</span>
+
+      <!-- Next link -->
+      {% if info.pagerData.nextPageName %}
+      <a href="{{ info.pagerData.nextPageName }}{{system.fileExt}}" class="previous">Next</a>
+      {% else %}
+      <span class="next">Next</span>
+      {% endif %}
+    </div>
+
+Since you only want to provide the pager and navigation to pages that are actually sliced up, you should surround any pger code with:
+
+    {% if info.pagerData %}
+    ...
+    {% endif %}
+
+Earlier in this guide I mentioned how some filters created important variables, as well as filtering files. This is the prime example of this mechanism at work: the `pager` plugin splits files in slices, and also (more importantly) sets several variables on those files so that the users know which slice they are a looking at.
+
+What you learned in this chapter:
+
+* You can split files up using the `pager` plugin
+* You can configure both the separator (`pageSeparator`) and the pattern used to create pages (`pageFileName`) setting those values in `_config.yaml`. The default values are `<!--pagebreak-->` and `{{originalName}}_{{number}}`.
+* The sliced up pages have a `pagerData` variable that you should use to make up navigation and pager with
 
 ### Landing
+
+In some cases, you might want to create a "landing" page: a page that users will see, and that will then link to the real contents.
+
+You can do this with the `landing` filter.
 
 TODO
 
 ### Lister
 
-TODO
-
-The most powerful plugin is Ryver is `lister`, which allows you to create a number of categories, and then "attach" any post to any categories amongst the available ones.
+The most powerful (and complex) plugin in Ryver is `lister`, which allows you to create a number of categories, and then "attach" any post to any categories amongst the available ones.
 
 The most common example is the possibility of wanting `tags` and `category` for your posts. This means that a post could have something like this it its frontmatter:
 
-### Ryver plugins
+---
+---
+
+Unlike other plugins, `lister` needs to be configured in order to work (since it's not really possible to set it with sane defaults).
 
 TODO
 
+### Ryver plugins
+
 When you use Ryver, you are actually using it with
 
+TODO
+
 ### Ryver watcher
+
+Ryver allows you to work on file and only regenerate what's strictly necessary when you save a file. This is a common feature in static site generators since it allows you to make small changes and see them immediately. This feature is especially important when
 
 TODO
 
@@ -493,11 +553,19 @@ TODO
 
 TODO
 
-### Analisys of very plugin in Ryver
+### API
 
 TODO
 
-### General structure of a plugin
+#### Functions signatures
+
+TODO
+
+#### Watching API
+
+TODO
+
+### Analisys of every plugin in Ryver
 
 TODO
 
