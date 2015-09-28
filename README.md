@@ -68,7 +68,7 @@ What you learned in this chapter:
 * The file `_info.yaml` is important in Ryver since it tells Ryver how what to do with files in that directory _as well as any nested directory_.
 * By having `filters: markup-markdown` in your `_info.yaml`, you are telling Ryver that any file with the extenion `.md` will need to be filtered as Markdown and renamed to `.html`.
 
-## The frontmatter
+### The frontmatter
 
 Ryver allows you to define a frontmatter for every file. The frontmatter allows you to define some variables which will only apply to that page.
 
@@ -94,7 +94,7 @@ What you learned in this chapter:
 * Files can have a _frontmatter_, which can be used to change user variables, as well as module variables which will change the way a file will get filtered.
 * Variables in the frontmatter have priority over variables set in `_info.yaml`.
 
-## Liquid template and more variables
+### Liquid template and more variables
 
 One of Ryver's filters is `template-liquid`, which allows you to process Liquid directives within your file.
 You can activate Liquid for a specific file using its frontmatter. Imagine you have:
@@ -123,7 +123,7 @@ What you learned in this chapter:
 * Variables in the frontmatter are accessible with in the `info.` namespace (or the `info` object)
 * One of the things plugins do is provide extra variables for you to use
 
-## Nested directories and variables
+### Nested directories and variables
 
 It's important now to take a deep breath and realise the power of Ryver and its variable system. When you have a `_info.yaml` file in a directory, the variables set there will be available to every filtered file in that directory, as well as _every filtered file in any nested directory_.
 
@@ -135,7 +135,7 @@ What you learned in this chapter:
 
 * Variables set in `_info.yaml` files will influence variables for every filtered file in that directory and in any subsirectory. Frontmatter in files will also redefine variables on a per-file basis.
 
-## Filtering lifecycle
+### Filtering lifecycle
 
 At this point, you saw two cases where filtering was added: setting the `filters` variable, and setting the `postProcessFilters` variable.
 
@@ -175,67 +175,265 @@ What you learned in this chapter:
 * All phases are equal, except `postProcessFilters` which guarantees that all variables set by plugins are set.
 * You should use grouping to simplify how you redefine filters according to filter definition in `_info.yaml`. You will usually put the most common case in the root `_info.yaml`, and then redefine specific groups in inner directories.
 
-## Ryver's `_config.yaml` file
+### Ryver's `_config.yaml` file
 
-Some of Ryver's plugins are configurable. If you place a file called `_config.yaml` in Ryver,
+Some of Ryver's plugins are configurable. If you place a file called `_config.yaml` in Ryver, you will be able to change some of the default configuration settings.
 
+Ryver uses the config file to those settings that are 1) Global in scope 2) Affecting how a plugin will work.
 
-## Layout
+For example, in `_config.yaml` you can define the list of plugins installed by default by Ryver, or where the layout files are (for the layout plugin). This sort of setting is global in scope, meaning that it wouldn't make sense to have it in `_info.yaml` (which has a per-directory scope) or in the file's frontmatter.
+
+I will now explain several filters; for each one, I will explain what confguration options you have in `_config.yaml` (which, I remind you, should be at the root of your source directory).
+
+What you learned in this chapter:
+
+* You can have a global config file called `_config.yaml` in the root of your source directory called
+* The `_config.yaml` file has global confguration options for plugins and filters
+
+### Layout
+
+This is probably one of the most important plugins in Ryver. It allows you to place the contents of a file into a template.
+
+For example, create a file called `templateHelloWorld.md` with the following contents:
+
+    ---
+    layout: page.html
+    postFilters: layout
+    ---
+    # Hello world!
+    Mind you, it's a templated world!
+
+Running Ryver will result in an error:
+
+`Ryver · ENOENT, open 'src/_layouts/page.html'``
+
+This error is there because Ryver expects, by default, to find `page.html` (the template file) in the `_layouts` directory. (NOTE: the `_layouts` directory will _not_ be in the resulting site since its name starts with an underscore).
+
+So, create a `_layouts` directory in the root of your source directory, and place a `page.html` file as follows:
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+    "http://www.w3.org/TR/html4/strict.dtd">
+<html lang="en">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>The title!</title>
+  </head>
+  <body>
+
+<!--contents-->
+
+  </body>
+</html>
+
+Note that this is a minimalistic HTML file, with a placeholder -- `<!--contents-->` that will instruct Ryver where to place the filtered page.
+
+If you run `ryver src`, you will see that the resulting `templateHelloWorld.md` will be created like so:
+
+    <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+        "http://www.w3.org/TR/html4/strict.dtd">
+    <html lang="en">
+      <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>The title!</title>
+      </head>
+      <body>
+
+    <h1 id="hello-world-">Hello world!</h1>
+    <p>Mind you, it’s a templated world!</p>
+
+      </body>
+    </html>
+
+Note that this is the first time we do something actually useful using Ryver: yo had a simple Markdown file called `templateHelloWorld.md` and produced, as a result, a functioning and well formatted HTML file called `templateHelloWorld.html`.
+
+The `markup-markdown` filter was applied because you have a `_info.yaml` file in the root of your source directory, with the following:
+
+    filters: markup-markdown
+
+Finally, you can configure the layout plugin to change the name of the `_layouts` directory, by placing something like this in your `_config.yaml` file:
+
+`includesFolder: _alternativeIncludes`
+
+It's important for the directory name to start with an underscore, so that it won't be copied over to the final result.
+
+What you learned in this chapter:
 
 TODO
 
-## Pager
+
+### Layout and liquid together
+
+If you worked with HTML generators before, you probably noticed an eye-sore in the `page.html` file:
+
+    <title>The title!</title>
+
+This implies tht every single page using `page.html` as a template will have `The title!` as their HTML title. This is hardly ideal.
+
+To make things really shine, you can -- and in fact -- use the layout and the liquid filter together.
+
+Change `page.html` like so:
+
+    <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+        "http://www.w3.org/TR/html4/strict.dtd">
+    <html lang="en">
+      <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>{{info.title}}</title>
+      </head>
+      <body>
+
+    <!--contents-->
+
+      </body>
+    </html>
+
+Also, change `templateHelloWorld.md` like so:
+
+    ---
+    layout: page.html
+    postFilters: layout
+    postProcessFilters: template-liquid
+
+    title: It's a template title!
+    ---
+    # Hello world!
+    Mind you, it's a templated world!
+
+
+The result will me much better:
+
+    <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+        "http://www.w3.org/TR/html4/strict.dtd">
+    <html lang="en">
+      <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>It's a template title!</title>
+      </head>
+      <body>
+
+    <h1 id="hello-world-">Hello world!</h1>
+    <p>Mind you, it’s a templated world!</p>
+
+
+      </body>
+    </html>
+
+This is what happened in terms of filtering. The file had the following fiters set:
+
+* `filters: markup-markdown` (from `_info.yaml`)
+* `postFilters: layout` (from the file's frontmatter)
+* `postProcessFilters: template-liquid` (from the file's frontmatter)
+
+So, the filters will be applied in the following order: `markup-markdown`, `layout`, `template-liquid`.
+
+After `markup-markdown`, the contents will go from:
+
+    # Hello world!
+    Mind you, it's a templated world!
+
+To:
+
+    <h1 id="hello-world-">Hello world!</h1>
+    <p>Mind you, it’s a templated world!</p>
+
+Note that the file's name will also change to `templateHelloWorld.html` (the filter will actually rename the file).
+
+After `layout`, the contents will be placed accodding to the placeholder in `page.html`, and the contents will be transformed into:
+
+    <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+        "http://www.w3.org/TR/html4/strict.dtd">
+    <html lang="en">
+      <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>{{info.title}}</title>
+      </head>
+      <body>
+
+    <h1 id="hello-world-">Hello world!</h1>
+    <p>Mind you, it’s a templated world!</p>
+
+
+      </body>
+    </html>
+
+After `template-liquid`, all of the `liquid` directives will be executed, including `{info.title}`, and the contents will be transformed into:
+
+    <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+        "http://www.w3.org/TR/html4/strict.dtd">
+    <html lang="en">
+      <head>
+        <meta http-equiv="content-type" content="text/html; charset=utf-8">
+        <title>It's a template title!</title>
+      </head>
+      <body>
+
+    <h1 id="hello-world-">Hello world!</h1>
+    <p>Mind you, it’s a templated world!</p>
+
+
+      </body>
+    </html>
+
+As you can see, _the order in which the filters are executed actually matters_. If you ran the `template-liquid` filter before `layout`, the variable `{{info.title}}` would never be resolved. If you ran `markup-markdown` after `layout`, the markdown filter will not work since it doesn't compile anything within a `<div>` (which would be the case, since the contents would already be placed in the layout).
+
+The order in which you should execute the filters is the natural order in which you would process the contents. This will become more evident with the next two filters I will explain.
+
+What you learned in this chapter:
 
 TODO
 
-## Landing
+### Pager
 
 TODO
 
-## Lister
+### Landing
+
+TODO
+
+### Lister
+
+TODO
 
 The most powerful plugin is Ryver is `lister`, which allows you to create a number of categories, and then "attach" any post to any categories amongst the available ones.
 
 The most common example is the possibility of wanting `tags` and `category` for your posts. This means that a post could have something like this it its frontmatter:
 
----
-
----
-
-## Ryver plugins
-
-When you use Ryver, you are actually using it with
-
-## Ryver watcher
+### Ryver plugins
 
 TODO
 
-## Ryver sites
+When you use Ryver, you are actually using it with
 
-These filters allow you to create powerful, unhackable static sites.
+### Ryver watcher
 
-# Developing with Ryver
+TODO
+
+## Developing with Ryver
 
 Ryver is based on plugins. In fact, Ryver itself is a small core, which deals almost exclusively with loading plugins and setting up -- as well as calling -- the hooks for those plugins.
 
 Before getting into development, you should read Ryver's user guide and use Ryver at least for a little while, so that you are at least familiar with Ryver's "way" of doing things.
 
-## Modules as plugins
+### Modules as plugins
 
-## Life cycle of filtering: hooks and filters
+TODO
 
-## General structure of a plugin
+### Life cycle of filtering: hooks and filters
 
-## Looking at existing plugins: techniques and tips
+TODO
 
-## An example plugin
+### Analisys of very plugin in Ryver
 
+TODO
 
+### General structure of a plugin
 
+TODO
 
-# Old blurb
+### Looking at existing plugins: techniques and tips
 
-A simple, filter-based static file generator with Node.js.
-Mainly created out of my sheer desire of starting _and_ finishing something, after more that 3 years of developing [Hotplate](https://github.com/mercmobily/hotplate) -- as well as my need to convert several existing web sites to static ones.
+TODO
 
-Ryver is currently being documented. Also, unit-testing hasn't been done (yet)
+### An example plugin
+
+TODO
