@@ -512,7 +512,45 @@ In some cases, you might want to create a "landing" page: a page that users will
 
 You can do this with the `landing` filter.
 
-TODO
+Create a file called `article.md` that contains the following:
+
+    ---
+    layout: page.html
+    landing: `_landing.md`
+    postFilters: landing, layout
+    postProcessFilters: template-liquid
+
+    title: It's a page behind a landing one!
+    ---
+    # You got here!
+
+    Mind you, you probably had a landing page first!
+
+You will also need to create a file called `_landing.md` (referenced in the frontmatter) in the same directory. For example:
+
+    ---
+    layout: page.html
+    postFilters: layout
+    postProcessFilters: template-liquid
+
+    title: It's a page behind a landing one!
+    ---
+    # Landing page!
+
+    Hello, this is the landing page!
+    Now you should go to your [Final destination]({{info.originalDestination}})
+
+The landing file (in this case `_landing.md`) will be filtered providing it an extra variable, called `info.originalDestination`, which can be used to make a link to the original generating file.
+
+The landing page will inherit the same variables as the originating file.
+
+If you would like to use a generic landing page, you can place the `_landing.md` file in a directory called `_includes` in the root of the source folder. This will allow you to use the same landing page for different files, regardless of where they are stored on the file system. if a file called `_landing.md` isn't in the same directory as the processed file, it will be searched in `_includes`.
+
+Keep in mind that the landing page will inherit the same variables as the originating file, even if it's placed in the `_includes` directory.
+
+You can easily change the includes directory by setting the `includesFolder` variable in your `config.yaml` file:
+
+    includesFolder: _someOtherIncludes
 
 ### Lister
 
@@ -526,6 +564,12 @@ The most common example is the possibility of wanting `tags` and `category` for 
 Unlike other plugins, `lister` needs to be configured in order to work (since it's not really possible to set it with sane defaults).
 
 TODO
+
+### A complete Ryver site
+
+If you followed this guide, you ended up with a bunched of test files in your `src` folder, a good understanding of Ryver, but no real starting point for a real site.
+
+The `example` directory in Ryver provides exactly that: a simil-real life example of how to use Ryver in a site.
 
 ### Ryver plugins
 
