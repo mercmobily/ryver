@@ -246,7 +246,7 @@ If you run `ryver src`, you will see that the resulting `templateHelloWorld.md` 
 
 Note that this is the first time we do something actually useful using Ryver: yo had a simple Markdown file called `templateHelloWorld.md` and produced, as a result, a functioning and well formatted HTML file called `templateHelloWorld.html`.
 
-The `markup-markdown` filter was applied because you have a `_info.yaml` file in the root of your source directory, with the following:
+Don't forget that the `markup-markdown` filter was applied because you have a `_info.yaml` file in the root of your source directory, with the following:
 
     filters: markup-markdown
 
@@ -258,8 +258,9 @@ It's important for the directory name to start with an underscore, so that it wo
 
 What you learned in this chapter:
 
-TODO
-
+* You can filter contents though the `layout` filter, which will place the contents within a template with ``postFilters: layout` in your frontmatter
+* In order for filtering to do anything, you need to have a `layout` variable set (on a per-directory bases, in a `_info.yaml` file, or in your frontmatter). E.g. `layout: page.html` will use the template in `_includes/page.html`
+* The template file will be just text, with the special placeholder `<!--contents-->` which will be replaced with the contents of the file
 
 ### Layout and liquid together
 
@@ -314,7 +315,6 @@ The result will me much better:
     <h1 id="hello-world-">Hello world!</h1>
     <p>Mind you, it’s a templated world!</p>
 
-
       </body>
     </html>
 
@@ -352,7 +352,6 @@ After `layout`, the contents will be placed accodding to the placeholder in `pag
     <h1 id="hello-world-">Hello world!</h1>
     <p>Mind you, it’s a templated world!</p>
 
-
       </body>
     </html>
 
@@ -370,7 +369,6 @@ After `template-liquid`, all of the `liquid` directives will be executed, includ
     <h1 id="hello-world-">Hello world!</h1>
     <p>Mind you, it’s a templated world!</p>
 
-
       </body>
     </html>
 
@@ -380,11 +378,84 @@ The order in which you should execute the filters is the natural order in which 
 
 What you learned in this chapter:
 
-TODO
+* The order in which filters are applied is important, as it needs to make sense
+* Variable substitution (with `template-liquid`) should happen after `layout`, so that any liquid tags in the template file will actually be compiled
+* The filter `template-liquid` (or any filter that does variable-substitution) should be called in `postProcessFilters`, which is the only special stage
 
 ### Pager
 
-TODO
+You sometimes want to split your contents into separate pages. Ryver majes this very simple, by using the `pager` plugin.
+
+Create a file like so:
+
+    ---
+    layout: page.html
+    preFilters: pager
+    postFilters: layout
+    postProcessFilters: template-liquid
+
+    title: It's a template title!
+    ---
+
+    # Hello there
+
+    This is a file that will end up split into several ones.
+    The way it works is really simple, and yet very powerful.
+
+    This is the end of the first page.
+
+    <!--pagebreak-->
+
+    This is the second page.
+
+    <!--pagebreak-->
+
+    This is the third page.
+
+    <!--pagebreak-->
+
+    This is the fourth (and last) page.
+
+Once you run `ryver src`, you will see that four files were actually created:
+
+* paged.html
+* paged_2.html
+* paged_3.html
+* paged_4.html
+
+So, the final result, rather than being a whole file, is four different slices where each slice is marked by `<!--pagebreak-->`.
+
+You can decide both the separator and the pattern of the "paged" file names in your `_config.yaml` file. For example you could have:
+
+    pageFileName: 'another_page{{originalName}}_{{number}}'
+    pageSeparator: '<!--anotherPagebreak-->'
+
+### Variables available in the pages
+
+While having split files is very useful, what's really crucial is being able to know, within the page, enough information to create a "pager" and actually navigate to the next page. Crucial information is for example:
+
+* The page number
+* The total number of pages
+* The name of the "next" page
+* The name of the "previous" page
+* An array with all the available pages, where each element has a page number, a page name, and a flag set to `true` if the page in the pager is the same as the displayed one
+
+Luckily, all of this information is made available by the `pager` plugin to every single page, through the followng variables:
+
+* pageNumber
+* totalPages
+* prevPageName
+* nextPageName
+* pager[] (an array where each element has the following attributes)
+  *  pageNumber
+  *  pageName
+  *  thisPage
+
+
+
+
+
+
 
 ### Landing
 
