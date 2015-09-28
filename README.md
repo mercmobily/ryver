@@ -26,7 +26,7 @@ The result (which is... nothing) will be placed in `_site`.
 
 `_site` happens to be the default destination directory: you can change it to whatever you like by providing a second parameter:
 
-   ryver src somewhere
+    ryver src somewhere
 
 In this case, `somewhere` will contain the result of your hard work.
 
