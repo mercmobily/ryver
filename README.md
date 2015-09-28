@@ -418,10 +418,10 @@ Create a file like so:
 
 Once you run `ryver src`, you will see that four files were actually created:
 
-* paged.html
-* paged_2.html
-* paged_3.html
-* paged_4.html
+* `paged.html`
+* `paged_2.html`
+* `paged_3.html`
+* `paged_4.html`
 
 So, the final result, rather than being a whole file, is four different slices where each slice is marked by `<!--pagebreak-->`.
 
@@ -446,7 +446,7 @@ Luckily, all of this information is made available by the `pager` plugin to ever
 * `totalPages`
 * `prevPageName`
 * `nextPageName`
-* `pager[]`` (an array where each element has the following attributes)
+* `pager[]` (an array where each element has the following attributes)
   *  `pageNumber`
   *  `pageName`
   *  `thisPage`
