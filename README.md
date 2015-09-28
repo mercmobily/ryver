@@ -430,7 +430,7 @@ You can decide both the separator and the pattern of the "paged" file names in y
     pageFileName: 'another_page{{originalName}}_{{number}}'
     pageSeparator: '<!--anotherPagebreak-->'
 
-### Variables available in the pages
+#### Variables available in the pages
 
 While having split files is very useful, what's really crucial is being able to know, within the page, enough information to create a "pager" and actually navigate to the next page. Crucial information is for example:
 
@@ -442,14 +442,14 @@ While having split files is very useful, what's really crucial is being able to 
 
 Luckily, all of this information is made available by the `pager` plugin to every single page, through the followng variables:
 
-* pageNumber
-* totalPages
-* prevPageName
-* nextPageName
-* pager[] (an array where each element has the following attributes)
-  *  pageNumber
-  *  pageName
-  *  thisPage
+* `pageNumber`
+* `totalPages`
+* `prevPageName`
+* `nextPageName`
+* `pager[]`` (an array where each element has the following attributes)
+  *  `pageNumber`
+  *  `pageName`
+  *  `thisPage`
 
 
 
