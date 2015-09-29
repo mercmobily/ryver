@@ -544,13 +544,19 @@ The landing file (in this case `_landing.md`) will be filtered providing it an e
 
 The landing page will inherit the same variables as the originating file.
 
-If you would like to use a generic landing page, you can place the `_landing.md` file in a directory called `_includes` in the root of the source folder. This will allow you to use the same landing page for different files, regardless of where they are stored on the file system. if a file called `_landing.md` isn't in the same directory as the processed file, it will be searched in `_includes`.
+If you would like to use a generic landing page, you can place the `_landing.md` file in a directory called `_includes` in the root of the source directory. This will allow you to use the same landing page for different files, regardless of where they are stored on the file system. If a file called `_landing.md` isn't in the same directory as the processed file, it will be searched in `_includes`.
 
 Keep in mind that the landing page will inherit the same variables as the originating file, even if it's placed in the `_includes` directory.
 
 You can easily change the includes directory by setting the `includesFolder` variable in your `config.yaml` file:
 
-    includesFolder: _someOtherIncludes
+    includesFolder: `_someOtherIncludes`
+
+
+What you learned in this chapter:
+
+TODO
+
 
 ### Lister
 
@@ -558,10 +564,107 @@ The most powerful (and complex) plugin in Ryver is `lister`, which allows you to
 
 The most common example is the possibility of wanting `tags` and `category` for your posts. This means that a post could have something like this it its frontmatter:
 
----
----
+There are two main tasks the `lister` accomplishes:
+
+* Generates template-based, paged pages which list all documents belonging to a tag/category. This allows you to have comprehensive lists of all articles with the tag `linux`.
+* Create template variables with the _latest N documents_ belonging to a specific tag/category. This allows you to have, in a page, something like "Latest 10 articles about Linux".
+
+There is no limit on the number of categories you can have.
+
+#### Configuring the lister
 
 Unlike other plugins, `lister` needs to be configured in order to work (since it's not really possible to set it with sane defaults).
+
+This is what you could have in your `_config.yaml` file:
+
+    # File generation section
+    listTemplate: _listTemplate.md
+    listMainPageName: index
+    listNumberPageName: index_{{number}}
+
+    # Variable to define grouping variables and placement of generated list files
+    listVars:
+      tags:
+        indexFolder: tags/{{name}}
+        perPage: 5
+        sortBy: date
+      categories:
+        indexFolder: categories/{{name}}
+        perPage: 5
+        sortBy: date
+
+    listAll:
+      indexFolder: articles
+      perPage: 10
+      sortBy: date
+
+The first part, `listTemplate: _listTemplate.md`, defines which file will be used as basic template to generate a list of articles. The file will need to be placed in the `_includes` directory (or wherever you set `includesFolder` to be in your `_config.yaml` file).
+
+`listMainPageName` and `listNumberPageName` set the names of the main index file and subsequent pager files generated (since there could be 10000 articles on `linux`, and listing them all in one page might prove difficult). In `listNumberPageName`, `{{number}}` is obviously resolved to the page number.
+
+The `listVars` variable defines which variables in the frontmatter of a file will be considered by `lister`. In this case, `tags` and `categories`. This means that when a file has in its frontmatter something like this:
+
+    ----
+    listed: true
+    categories: hacking
+    tags: programming,security,linux
+    date: 2002-12-14
+    ...the rest of the frontmatter...
+    ----
+
+The page will be assigned to the category `hacking` and to the tags `programming`, `security` and `linux`. Note that in order to make sure the artcle is considered by `lister` you also need to set `listed: true`. As you can see, in `lister`'s  configuration for each key in `listVars` you need to set `indexFolder` (which is the directory in which the paginated files will be placed, where `{{name}}` is resolved to the category/tag name), `perPage` (the number of articles placed in each page) and `sortBy` (the field that will be used to sort the documents).
+
+The last part of the configuration file is the `listAll` key, which configures how the _full_ list of documents is created, paginated and sorted.
+
+#### The file generaton side of things
+
+When you run `ryver src`, the following directories will be created in the destination folder:
+
+* `tags`. Will contain one subdirectory for each tag defined at least once; each subdirectory will contain the listing files, called `index.html`, `index_1.html` and so on.
+* `categories`. Will contain one subsirectory for each category defined at least once; each subdirectory will contain the listing files, called `index.html`, `index_1.html` and so on
+* `articles`. Will contain the listing files directly (called `index.html`, `index_1.html` and so on.)
+
+Each listing page will be generated using `_listTemplate.md` as a template. Note that in terms of `_info.yaml`, it's as if the template file were placed into `tags` or `categories`. So, the `_info.yaml` from the root directory and the `_info.yaml` in `tags` or `categories` will be able to set variables referenced as `info` in `_listTemplate.md`. Also note that any file in `tags/` in the _source folder_ will be copied over. So, you will be able to populate the destination directories with any extra CSS, icon files, or whatever else you need.
+
+The file `_listTemplate.md` will have the same variables available for the pager. Specifically:
+
+* `pageNumber`
+* `totalPages`
+* `prevPageName`
+* `nextPageName`
+* `pager[]` (an array where each element has the following attributes)
+  *  `pageNumber`
+  *  `pageName`
+  *  `thisPage`
+
+However, these extra values will also be available:
+
+* `pageName` The current page name displaying the elements.
+* `listName` The name of the list. In this case it could be `articles` or `tags`.
+* `valueName` The value within that list. In this case it could be `linux`, or `security`
+* `totalElemens` The total number of documents across all pages
+* `elementsPerPage` The maximum number of documents a page can list
+* `elementsInThisPage` An array containing all elements listed this very page. Each element will be in `fileData` format.
+
+These extra variables only make sense in the context of paginating a list of articles within the pager.
+
+While the pager code is the exact same as the one shown in the `pager` chapter of this guide, the code to list the articles will simply need to cycle through `elementsInThisPage` and display formatted information about each entry:
+
+    <!-- This loops through the paginated posts -->
+    <div class="article-list article-{{info.listName}}">
+      <ul>
+      {% for article in info.elementsInThisPage %}
+        <p><a href="{{article.system.filePath}}{{article.system.fileName}}{{article.system.fileExt}}">{{article.info.title}}</a></p>
+      {% endfor %}
+      </ul>
+    </div>
+    TODO: check and improve this code
+
+Since you also know the list name and the value name. This means that you can theme the site accordingly.
+
+Since creating a working example of list generation is complex, a full setup with tags and categories will be provided in the next chapter, along with a full example web site that covers everything explained in this guide.
+
+What you learned in this chapter:
 
 TODO
 
@@ -582,6 +685,10 @@ TODO
 Ryver allows you to work on file and only regenerate what's strictly necessary when you save a file. This is a common feature in static site generators since it allows you to make small changes and see them immediately. This feature is especially important when
 
 TODO
+
+
+
+
 
 ## Developing with Ryver
 
