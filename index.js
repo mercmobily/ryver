@@ -730,7 +730,7 @@ var readYamlFile = exports.readYamlFile = function( baseObject, filePath, fileNa
   });
 }
 
-// Read and parse config file. It simpy uses
+// Read and parse config file. It simply uses
 var readAndSetConfig = exports.readAndSetConfig = function( cb ){
 
   if( ! getSrc() ){
