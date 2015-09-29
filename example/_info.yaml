@@ -1,0 +1,35 @@
+# These values are used as the starting point of the whole tree.
+# Remember that you can redefine any one of them by placing another
+# _info.yaml file in a subfolder. The values in the nested _info.yaml
+# will enrich, rather than substitute.
+# So, this is a great spot for defaults. With this, unless specified, every
+# text page will be filtered by layout.
+
+# Default values for layout and landing.
+layout: page.html
+landing: ''
+
+# Filtering is grouped into groups so that you can separate them
+# logically by type of task and only redefine specific ones in files
+# `postProcessFilters` are the last filters applied, and they are "special"
+# filters as they are the only one to have the guarantee that all plugins have set
+# all the info variables they might set. That's where you want any filter that
+# does variable substitution
+# This is very typical grouping.
+# Af file level, you could have `preFilters: pager` in the frontmatter, so that
+# other filters will not be affected (and will still be applied)
+preProcessFilters:
+preFilters:
+filters: markup-markdown
+postFilters: layout
+postProcessFilters: template-liquid
+
+# This means that the file is possibly part of a "group"
+# It's false by default -- it will be turned on by each file's frontmatter
+listed: false
+
+# Setting some "random" variables. Since this is the top level _info.yaml, these
+# variables will be available everywhere in the file
+example1: 10
+example2: 22
+example3: { a : 10, b: 30 }

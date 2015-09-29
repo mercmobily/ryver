@@ -1,0 +1,32 @@
+# Plugins (default)
+plugins: frontmatter,pager,markup-markdown,layout,landing,template-liquid,template-ejs,filecopy
+
+# Common general directories (default)
+includesFolder: _includes
+layoutsFolder: _layouts
+
+# pagerplugin (default)
+pageFileName: '{{originalName}}_{{number}}'
+pageSeparator: '<!--pagebreak-->'
+
+# Lister plugin (default)
+listTemplate: _listTemplate.md
+listMainPageName: index
+listNumberPageName: index_{{number}}
+
+# Variable to define grouping variables and placement of generated list files
+# (No possible defaults here, it depends from site to site)
+listVars:
+  tags:
+    indexFolder: tags/{{name}}
+    perPage: 5
+    sortBy: date
+  categories:
+    indexFolder: categories/{{name}}
+    perPage: 5
+    sortBy: date
+
+listAll:
+  indexFolder: articles
+  perPage: 10
+  sortBy: date
