@@ -39,7 +39,7 @@
     "ryver-template-ejs",
     "ryver-template-liquid",
     "ryver-watcher",
-    "ryver-surround",
+    "ryver-surround"
   ],
   "bugs": {
     "url": "https://github.com/mercmobily/ryver/issues"
