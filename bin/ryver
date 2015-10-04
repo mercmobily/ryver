@@ -140,7 +140,7 @@ if( program.watch ) ryver.setWatch( true );
 
 // Default plugins
 //var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'lister', 'template-liquid', 'template-ejs', 'filecopy'  ];
-var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'template-liquid', 'template-ejs', 'filecopy'  ];
+var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'template-liquid', 'template-ejs', 'filecopy', 'surround'  ];
 
 
 // Add plugin from "master" _info.yaml file
