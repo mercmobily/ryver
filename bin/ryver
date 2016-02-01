@@ -15,6 +15,9 @@ var p = require('path');
 
 var static = require('node-static');
 
+exports.ryver = ryver;
+
+
 /**
  * Support functions.
  */
@@ -139,9 +142,7 @@ if( program.watch ) ryver.setWatch( true );
  */
 
 // Default plugins
-//var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'lister', 'template-liquid', 'template-ejs', 'filecopy'  ];
-var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'landing', 'template-liquid', 'template-ejs', 'filecopy', 'surround'  ];
-
+var plugins = [ 'frontmatter', 'pager', 'markup-markdown', 'layout', 'surround', 'landing', 'lister', 'template-liquid', 'template-ejs', 'filecopy', 'surround'  ];
 
 // Add plugin from "master" _info.yaml file
 
@@ -163,9 +164,18 @@ ryver.readAndSetConfig( function( err, config ){
   ryver.log("Plugins to apply:", plugins.join(',') );
 
   // Load all plugins, which are the module named 'ryver' plus the plugin name
+  // TODO: Add a 'safe' mode where looking into _plugins doesn't happen as
+  // it would be insanely insecure in some cases
   plugins.forEach( function( plugin ){
     if( plugin === 'watcher') fatal( new Error( "To enable watcher, simply use -w or --watch" ) );
-    require( 'ryver-' + plugin );
+    try {
+      require( 'ryver-' + plugin );
+    } catch( e ) {
+      if( e.code === 'MODULE_NOT_FOUND' ){
+        require( p.join( cwd, src, '_plugins', 'ryver-' + plugin ) );
+      } else throw( e );
+    }
+
   });
   if( program.watch ) var watcher = require( 'ryver-watcher' );
 
