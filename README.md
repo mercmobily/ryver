@@ -244,7 +244,7 @@ If you run `ryver src`, you will see that the resulting `templateHelloWorld.md` 
       </body>
     </html>
 
-Note that this is the first time we do something actually useful using Ryver: yo had a simple Markdown file called `templateHelloWorld.md` and produced, as a result, a functioning and well formatted HTML file called `templateHelloWorld.html`.
+Note that this is the first time we do something actually useful using Ryver: you had a simple Markdown file called `templateHelloWorld.md` and produced, as a result, a functioning and well formatted HTML file called `templateHelloWorld.html`.
 
 Don't forget that the `markup-markdown` filter was applied because you have a `_info.yaml` file in the root of your source directory, with the following:
 
@@ -252,14 +252,14 @@ Don't forget that the `markup-markdown` filter was applied because you have a `_
 
 Finally, you can configure the layout plugin to change the name of the `_layouts` directory, by placing something like this in your `_config.yaml` file:
 
-`includesFolder: _alternativeIncludes`
+`layoutsFolder: _alternativeLayoutsFolder`
 
 It's important for the directory name to start with an underscore, so that it won't be copied over to the final result.
 
 What you learned in this chapter:
 
 * You can filter contents though the `layout` filter, which will place the contents within a template with `postFilters: layout` in your frontmatter
-* In order for filtering to do anything, you need to have a `layout` variable set (on a per-directory bases, in a `_info.yaml` file, or in your frontmatter). E.g. `layout: page.html` will use the template in `_includes/page.html`
+* In order for filtering to do anything, you need to have a `layout` variable set (on a per-directory bases, in a `_info.yaml` file, or in your frontmatter). E.g. `layout: page.html` will use the template in `_layouts/page.html`
 * The template file will be just text, with the special placeholder `<!--contents-->` which will be replaced with the contents of the file
 
 ### Layout and liquid together
