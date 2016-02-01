@@ -439,8 +439,10 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
         'beforePreProcessFilters',
         // ...front matter...
         'afterPreProcessFilters',
+
         'beforeFilters',
         'afterFilters',
+
         'beforePostProcessFilters',
         'afterPostProcessFilters',
         'beforeDelayedPostProcess',
@@ -644,7 +646,7 @@ var filterDelayedItems = exports.filterDelayedItems = function( cb ){
 
 // Make a fileData object. If fileContentsAsBuffer isn't set, it will
 // load it from filePath + fileName + fileExt
-var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNameAndExt, fileContentsAsBuffer, info, cb ){
+var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNameAndExt, fileContentsAsBuffer, info, skipCloning, cb ){
 
   if( fileContentsAsBuffer ){
     restOfFunction();
@@ -666,6 +668,7 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
 
       log("fileNameAndExt is", fileNameAndExt, "and as a result fileName is ", fileName, "and fileExt is:", fileExt );
 
+      //console.log("\n\n\nINFO IS: ", require('util').inspect(info, {showHidden: false, depth: null}));
       // Sets the basic file info
       var fileData = {
         system: {
@@ -679,8 +682,8 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
           originDependencies: [],
           originMasterFileURL: sourceURL ?  sourceURL : null,
         },
-        initialInfo: cloneObject( info ),
-        info: cloneObject( info ),
+        initialInfo: skipCloning ? info : cloneObject( info ),
+        info: skipCloning ? info : cloneObject( info ),
         initialContents: fileContentsAsBuffer,
         contents: fileContentsAsBuffer,
       };
@@ -694,6 +697,7 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
       yamlURLsFromPath( fileData.system.filePath ).forEach( function( URL ){
         fileData.system.originDependencies.push( URL );
       });
+
 
       cb( null, fileData );
     });
@@ -833,7 +837,7 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
             log( "filePath: ", filePath );
             log( "getSrc() is: ", getSrc() );
 
-            makeFileData( p.join( filePath, fileNameAndExt ), filePath, fileNameAndExt, null, info, function( err, fileData ){
+            makeFileData( p.join( filePath, fileNameAndExt ), filePath, fileNameAndExt, null, info, false, function( err, fileData ){
               if( err ) return cb( err );
 
               // Add the file itself to the list of origins since it IS a file on the file system
