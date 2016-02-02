@@ -2,6 +2,14 @@
 
 Ryver is the most powerful, extensible web site generator available. It's blazing fast, written in NodeJS, and using Yaml to configure how it works. You can use it to create powerful template-based static websites easily, and extend it adding simple hooks and filters.
 
+Ryver has book-style documentation. Its usage is fully documented; I will work on the last bit of documentation (how to make plugins and its API) once it's production-ready (sometime this month, February 2016).
+
+Ryver has a very solid filter-based architecture, it's extremely easy to understand and extend, and it's being deployed for two small sites and a large and established web site.
+
+**Historical notes**
+
+Ryver started as something that was meant to be a "one-week project", and it ended up taking me 6 weeks (initial version), + 1 week (initial fixups and documentation). It is being prepped to be used on three major production sites, which are going to be the testing bed for it to be declared "production ready".
+
 ## Install Ryver
 
 To install Ryver, simply type:
