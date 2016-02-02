@@ -1,6 +1,6 @@
 
 var async = require('async');
-var fs = require('fs-extra')
+var fs = require('fs.extra')
 var p = require('path')
 var EventEmitterCollector = require("eventemittercollector");
 var mmm = require('mmmagic');
@@ -75,14 +75,6 @@ eventEC.onCollect( 'watch', function( cb ){
 
 
 // Private module methods
-
-var deleteTrailingSlash = function( src ){
-  var lastIndex = src.length -1;
-  if( src[ lastIndex ] == '/' )
-    return src.substr(0, lastIndex )
-  else
-    return src;
-}
 
 var addHooksToList = function( list, hookName, front ){
 
@@ -176,24 +168,6 @@ var getConfig = exports.getConfig = function(){
 }
 
 var setConfig = exports.setConfig = function( config ){
-
-  config.ignoreHash = {};
-  config.copyHash = {};
-
-  if( Array.isArray( config.ignore ) ){
-    config.ignore.forEach( function( ignore ){
-      config.ignoreHash[ deleteTrailingSlash( ignore ) ] = true;
-    });
-  }
-
-  if( Array.isArray( config.copy ) ){
-    config.copy.forEach( function( copy ){
-      config.copyHash[ deleteTrailingSlash( copy ) ] = true;
-    });
-  }
-
-
-
   processing.config = config;
 }
 
@@ -210,11 +184,11 @@ var setVerbose = exports.setVerbose = function( verbose ){
 }
 
 var getSrc = exports.getSrc = function(){
-    return processing.src;
+  return processing.src;
 }
 
 var setSrc = exports.setSrc = function( src ){
-  processing.src = deleteTrailingSlash( src );
+  processing.src = src;
 }
 
 var getDst = exports.getDst = function(){
@@ -222,7 +196,7 @@ var getDst = exports.getDst = function(){
 }
 
 var setDst = exports.setDst = function( dst ){
-  processing.dst = deleteTrailingSlash( dst );
+  processing.dst = dst;
 }
 
 var getFilters = exports.getFilters = function(){
@@ -306,32 +280,15 @@ var callAllDone = exports.callAllDone = function( cb ){
   );
 }
 
-var getFileType = exports.getFileType = function( filePath, fileNameAndExt, cb ){
+var isDir = exports.isDir = function( filePath, fileNameAndExt, cb ){
 
-  var fullFilePath = p.join( getSrc(), filePath, fileNameAndExt );
-  fs.lstat( fullFilePath, function( err, fileStat ){
+  fs.lstat( p.join( getSrc(), filePath, fileNameAndExt ), function( err, fileStat ){
     if( err ) return cb( err );
 
-    // Ryver is only interested in files, directories and symlinks. Anything else
-    // won't be dealt with (as it shouldn't)
-    var fileType;
-    if( fileStat.isFile() ) fileType= 'file';
-    else if( fileStat.isDirectory() ) fileType = 'directory';
-    else if( fileStat.isSymbolicLink() ) fileType = 'symlink';
-    else fileType = 'other';
+    // It's a directory: return true
+    if( fileStat.isDirectory() ) return cb( null, true );
 
-    // If it's not a symlink, we are totally done
-    if( fileType != 'symlink' ){
-      return cb( null, fileType, fileStat );
-    }
-
-    // If it IS a symlink, it will enrich fileStat with the location where the link points to
-    fs.readlink( fullFilePath, function( err, pointsTo ){
-      if( err ) return cb( err );
-
-      fileStat.pointsTo = pointsTo;
-      return cb( null, fileType, fileStat );
-    })
+    return cb( null, false );
   });
 }
 
@@ -694,7 +651,6 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
   if( fileContentsAsBuffer ){
     restOfFunction();
   } else {
-    // TODO: Check if it's a symlink
     fs.readFile( p.join( getSrc(), filePath, fileNameAndExt ), function( err, fr ){
       if( err ) return cb( err );
       fileContentsAsBuffer = fr;
@@ -824,165 +780,115 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
   log( "absFilePath (full fs path):", absFilePath );
   log( "filePath (relative to getSrc():", filePath );
 
+  // Read all of the files in that directory
+  fs.readdir( absFilePath, function( err, fileNamesAndExt ){
+    if( err ) return cb( err );
 
-  // Check if it needs to be ignored or copied (check if config file says so)
-  // #DOCUMENT
-  if( processing.config.ignoreHash[ filePath ] ){
-    log( "File is to be ignored, ignoring" );
-    return cb( null );
-  }
+    log( "Will process the following files:", fileNamesAndExt );
+    vlog( "Info (including inherited values) is:", passedInfo );
 
-  // Check if it needs to be ignored or copied (check if config file says so)
-  // #DOCUMENT
-  if( processing.config.copyHash[ filePath ] ){
-    log( "File is to be copied straight through. Doing it" );
+    // There is a _info.yaml in the local directory! It will load it, and
+    // make an info object based on passedInfo enriched with localInfo
+    if( fileNamesAndExt.indexOf( '_info.yaml' ) !== -1 ){
 
-    fs.mkdirp( p.join( getDst(), filePath), function( err ){
-      if( err ) return cb( null );
+      log( "File _info.yaml found, reading it and enriching fileInfo with it");
 
-      fs.copy(  p.join( absFilePath ), p.join( getDst(), filePath  ), { clobber: true, preserveTimestamps: true }, function( err ){
+      readYamlFile( passedInfo, filePath, '_info.yaml', function( err, loadedInfo ){
         if( err ) return cb( err );
-        return cb( null );
-      });
-    });
 
-  } else {
-
-    // Read all of the files in that directory
-    fs.readdir( absFilePath, function( err, fileNamesAndExt ){
-      if( err ) return cb( err );
-
-      log( "Will process the following files:", fileNamesAndExt );
-      vlog( "Info (including inherited values) is:", passedInfo );
-
-      // There is a _info.yaml in the local directory! It will load it, and
-      // make an info object based on passedInfo enriched with localInfo
-      if( fileNamesAndExt.indexOf( '_info.yaml' ) !== -1 ){
-
-        log( "File _info.yaml found, reading it and enriching fileInfo with it");
-
-        readYamlFile( passedInfo, filePath, '_info.yaml', function( err, loadedInfo ){
-          if( err ) return cb( err );
-
-          info = loadedInfo;
-          if( mainCycle ) setMainInfo( loadedInfo );
-          restOfFunction();
-        });
-      } else {
-        log( "File _info.yaml not found, will use unchanged, inherited values" );
-        info = passedInfo;
+        info = loadedInfo;
+        if( mainCycle ) setMainInfo( loadedInfo );
         restOfFunction();
-      }
+      });
+    } else {
+      log( "File _info.yaml not found, will use unchanged, inherited values" );
+      info = passedInfo;
+      restOfFunction();
+    }
 
-      function restOfFunction(){
+    function restOfFunction(){
 
-        log( "Going through all files in the directory" );
-        async.eachSeries(
-          fileNamesAndExt,
-          function( fileNameAndExt, cb ){
+      log( "Going through all files in the directory" );
+      async.eachSeries(
+        fileNamesAndExt,
+        function( fileNameAndExt, cb ){
 
-            log( "\n\n-------------------\nPROCESSING ", fileNameAndExt ,"\n-------------------\n" );
-            if( fileNameAndExt[ 0 ] === '_' ){
-              log( "File starts with underscore, ignoring altogether" );
-              return cb( null );
-            }
+          log( "\n\n-------------------\nPROCESSING ", fileNameAndExt ,"\n-------------------\n" );
+          if( fileNameAndExt[ 0 ] === '_' ){
+            log( "File starts with underscore, ignoring altogether" );
+            return cb( null );
+          }
 
-            // Break up fileName into fileName and fileExt
-            //var fileExt = p.extname( fileNameAndExt );
-            //var fileName = p.basename( fileNameAndExt, fileExt );
+          // Break up fileName into fileName and fileExt
+          //var fileExt = p.extname( fileNameAndExt );
+          //var fileName = p.basename( fileNameAndExt, fileExt );
 
-
-            getFileType( filePath, fileNameAndExt, function( err, fileType, statInfo ){
-              if( err ) return cb( err );
-
-              // If it's a directory, process it as such
-              if( fileType == 'directory' ){
-                log( "File is a directory. Entering it, and processing files in there" );
-                return build( p.join( getSrc(), filePath, fileNameAndExt ), info, cb );
-              }
-
-              // If it's a directory, process it as such
-              else if( fileType == 'symlink' ){
-                log( "File is a symlink. Copying it straight" );
-
-                // Delete link first. Unlike files, links are not just overwritten
-                fs.unlink( p.join( getDst(), filePath, fileNameAndExt  ), function( err ){
-                  if( err && err.code != 'ENOENT' ) return cb( err ); // ENOENT is allowed, it's just an attempt
-
-                  fs.symlink(  statInfo.pointsTo, p.join( getDst(), filePath, fileNameAndExt  ),function( err ){
-                    if( err ) return cb( err );
-
-                    return cb( null );
-                  } )
-                });
-              }
-
-              else if( fileType == 'other' ){
-                log( "File is not a directory, a normal file or a symbolic link. Aborting." );
-                return cb( new Error( "Error processing", fileNameAndExt," in ", absFilePath, " -- file needs to be a normal file, a directory or a symlink"));
-              }
-
-              else {
-
-                log( "It is a file. Reading its contents" );
-
-                log( "filePath: ", filePath );
-                log( "getSrc() is: ", getSrc() );
-
-                makeFileData( p.join( filePath, fileNameAndExt ), filePath, fileNameAndExt, null, info, false, function( err, fileData ){
-                  if( err ) return cb( err );
-
-                  // Add the file itself to the list of origins since it IS a file on the file system
-                  //fileData.system.originDependencies.push( p.join( filePath, fileNameAndExt ) );
-
-                  log( "Basic fileData created" );
-                  vlog( function(){
-                    vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
-                  });
-
-                  log( "The file's mime type is ", fileData.system.mimetype );
-
-                  filter( fileData, function( err ){
-                    if( err ) return cb( err );
-
-                    vlog( function(){
-                      vlog( "fileData after filtering: ", trimFileData( fileData ) );
-                    });
-
-
-                    cb( null );
-                  })
-                })
-              }
-            })
-          },
-
-          function( err ){
+          isDir( filePath, fileNameAndExt, function( err, dir ){
             if( err ) return cb( err );
 
-            if( ! mainCycle ) return cb( null );
+            // If it's a directory, process it as such
+            if( dir ){
+              log( "File is a directory. Entering it, and processing files in there" );
+              return build( p.join( getSrc(), filePath, fileNameAndExt ), info, cb );
+            }
 
-            log( "" );
-            log( "*********************************************************************" );
-            log( "******** THE END -- NOW FILTERING DELAYED ITEMS *********************" );
-            log( "*********************************************************************" );
-            log( "" );
+            log( "It is a file. Reading its contents" );
 
-            // At this point, we ought to process all the items that reused to get processed
-            // and are now in processing.toPostProcess
-            filterDelayedItems( function( err ){
+            log( "filePath: ", filePath );
+            log( "getSrc() is: ", getSrc() );
+
+            makeFileData( p.join( filePath, fileNameAndExt ), filePath, fileNameAndExt, null, info, false, function( err, fileData ){
               if( err ) return cb( err );
 
-              callAllDone( function( err ){
-                if( err ) return cb( err );
+              // Add the file itself to the list of origins since it IS a file on the file system
+              //fileData.system.originDependencies.push( p.join( filePath, fileNameAndExt ) );
 
-                cb( null );
+              log( "Basic fileData created" );
+              vlog( function(){
+                vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
               });
 
+              log( "The file's mime type is ", fileData.system.mimetype );
+
+              filter( fileData, function( err ){
+                if( err ) return cb( err );
+
+                vlog( function(){
+                  vlog( "fileData after filtering: ", trimFileData( fileData ) );
+                });
+
+
+                cb( null );
+              })
             })
-          }
-        ); // End of async cycle
-      }
-    })
-  }
+          })
+        },
+
+        function( err ){
+          if( err ) return cb( err );
+
+          if( ! mainCycle ) return cb( null );
+
+          log( "" );
+          log( "*********************************************************************" );
+          log( "******** THE END -- NOW FILTERING DELAYED ITEMS *********************" );
+          log( "*********************************************************************" );
+          log( "" );
+
+          // At this point, we ought to process all the items that reused to get processed
+          // and are now in processing.toPostProcess
+          filterDelayedItems( function( err ){
+            if( err ) return cb( err );
+
+            callAllDone( function( err ){
+              if( err ) return cb( err );
+
+              cb( null );
+            });
+
+          })
+        }
+      ); // End of async cycle
+    }
+  })
 }
