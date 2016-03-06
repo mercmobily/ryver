@@ -179,6 +179,9 @@ var setConfig = exports.setConfig = function( config ){
 
   config.ignoreHash = {};
   config.copyHash = {};
+  config.asFile = {};
+  config.linkAsFileHash = {};
+  config.linkAsDirectoryHash = {};
 
   if( Array.isArray( config.ignore ) ){
     config.ignore.forEach( function( ignore ){
@@ -192,7 +195,17 @@ var setConfig = exports.setConfig = function( config ){
     });
   }
 
+  if( Array.isArray( config.linkAsFile ) ){
+    config.linkAsFile.forEach( function( linkAsFile ){
+      config.linkAsFileHash[ deleteTrailingSlash( linkAsFile ) ] = true;
+    });
+  }
 
+  if( Array.isArray( config.linkAsDirectory ) ){
+    config.linkAsDirectory.forEach( function( linkAsDirectory ){
+      config.linkAsDirectoryHash[ deleteTrailingSlash( linkAsDirectory ) ] = true;
+    });
+  }
 
   processing.config = config;
 }
@@ -895,6 +908,22 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
             getFileType( filePath, fileNameAndExt, function( err, fileType, statInfo ){
               if( err ) return cb( err );
 
+              if( fileType == 'symlink' ){
+
+                log( "Checking", p.join( filePath, fileNameAndExt), 'against', processing.config.linkAsDirectoryHash, processing.config.linkAsFileHash );
+
+                if( processing.config.linkAsDirectoryHash[ p.join( filePath, fileNameAndExt)] ){
+                  log("File is symlink, but it will be treated as a directory as requested by config file");
+                  fileType = 'directory';
+                }
+
+                if( processing.config.linkAsFileHash[ p.join( filePath, fileNameAndExt)] ){
+                  log("File is symlink, but it will be treated as a file as requested by config file");
+                  fileType = 'file';
+                }
+
+              }
+
               // If it's a directory, process it as such
               if( fileType == 'directory' ){
                 log( "File is a directory. Entering it, and processing files in there" );
@@ -909,11 +938,21 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
                 fs.unlink( p.join( getDst(), filePath, fileNameAndExt  ), function( err ){
                   if( err && err.code != 'ENOENT' ) return cb( err ); // ENOENT is allowed, it's just an attempt
 
-                  fs.symlink(  statInfo.pointsTo, p.join( getDst(), filePath, fileNameAndExt  ),function( err ){
-                    if( err ) return cb( err );
+                    fs.mkdirp( p.join( getDst(), filePath ), function( err ){
+                      if( err ) return cb( err );
 
-                    return cb( null );
-                  } )
+                      fs.symlink(  statInfo.pointsTo, p.join( getDst(), filePath, fileNameAndExt  ),function( err ){
+
+                      //if( err ) return cb( err );
+                      if( err ) console.log("ERR DURING symlink:", err );
+                      // Errors need to be quiet because the target might not yet exist
+                      // TODO: Fix this, make it so that symlinks to be made are added to an array and created
+                      // at the end
+
+
+                      return cb( null );
+                    });
+                  });
                 });
               }
 
