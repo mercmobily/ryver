@@ -1,0 +1,14 @@
+node_modules/async
+node_modules/chalk
+node_modules/commander
+node_modules/deepobject
+node_modules/eventemittercollector
+node_modules/finalhandler
+node_modules/fs-extra
+node_modules/js-yaml
+node_modules/marked
+node_modules/mmmagic
+node_modules/node-static
+node_modules/serve-static
+node_modules/tinyliquid
+node_modules/.bin/
