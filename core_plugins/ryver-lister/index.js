@@ -291,6 +291,7 @@ function makeLists( involvedOnes, cb ){
 
   // Load the contents of the list template file
   ryver.readFile( templatesDir, null, templateNameAndExt, function( err, listTemplateAsBuffer ){
+    if( err && err.code == 'ENOENT' && templateNameAndExt == '_listTemplate.html') return cb( null ); // No template, no joy
     if( err ) return cb( err );
 
     // Calling the generating function passing the right value, config, data
