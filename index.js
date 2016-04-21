@@ -748,7 +748,7 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
       // Convert to string if it's text-based mime type
       // This will leave binary data (images, etc.) intact
       if( fileData.system.mimetype.split('/')[0] === 'text')
-        fileData.contents = fileData.contents.toString();
+        fileData.contents = fileData.contents.toString('utf-8');
 
       // Add all of the info files to originDependencies
       yamlURLsFromPath( fileData.system.filePath ).forEach( function( URL ){
