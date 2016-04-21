@@ -60,9 +60,14 @@ function serveFiles(){
   // Serve up public/ftp folder
   var serve = serveStatic( dst, { fallthrough: false, 'index': ['index.html', 'index.htm']})
 
+  //http.globalAgent.maxSocket = 2000;
+
   // Create server
   var server = http.createServer(function( req, res ){
     var done = finalhandler( req, res)
+
+    console.log( "Serving " + req.url );
+
     serve( req, res, function( err ){
       if( err ){
         if( err.status === 404 ) console.log( "File not found:", err.path );
@@ -70,6 +75,8 @@ function serveFiles(){
       }
       done( err );
     });
+
+
   })
 
   // Listen
@@ -170,8 +177,9 @@ ryver.readAndSetConfig( function( err, config ){
   plugins.forEach( function( plugin ){
     if( plugin === 'watcher') fatal( new Error( "To enable watcher, simply use -w or --watch" ) );
     try {
-      require( 'ryver-' + plugin );
+      require( '../core_plugins/ryver-' + plugin );
     } catch( e ) {
+      console.log("ERROR:", e );
       if( e.code === 'MODULE_NOT_FOUND' ){
         require( p.join( cwd, src, '_plugins', 'ryver-' + plugin ) );
       } else throw( e );
