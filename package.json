@@ -31,19 +31,6 @@
     "serve-static":"~1.10",
     "finalhandler":"~0.4"
   },
-  "bundleDependencies": [
-    "ryver-filecopy",
-    "ryver-frontmatter",
-    "ryver-landing",
-    "ryver-layout",
-    "ryver-lister",
-    "ryver-markup-markdown",
-    "ryver-pager",
-    "ryver-template-ejs",
-    "ryver-template-liquid",
-    "ryver-watcher",
-    "ryver-surround"
-  ],
   "bugs": {
     "url": "https://github.com/mercmobily/ryver/issues"
   },
