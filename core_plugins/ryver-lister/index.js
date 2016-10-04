@@ -226,16 +226,17 @@ eventEC.onCollect( 'beforeDelayedPostProcess', function( cb ){
     if( skipMe ) return cb( null );
 
     var makeSorter = function( sortField ){
+
       return function( a, b ){
         if( a.info[ sortField ] === b.info[ sortField ] ) return 0;
-        if( a.info[ sortField ] >   b.info[ sortField ] ) return 1;
-        if( a.info[ sortField ] <   b.info[ sortField ] ) return -1;
+        if( a.info[ sortField ] <   b.info[ sortField ] ) return 1;
+        if( a.info[ sortField ] >   b.info[ sortField ] ) return -1;
       }
     };
 
     // Sort the main (FULL) list of pages
     if( listData._ALL_ ){
-      listData._ALL_.sort( ryver.getConfig().listAll.sortBy );
+      listData._ALL_.sort( makeSorter( ryver.getConfig().listAll.sortBy ) );
     }
 
     // Sort the sub-lists, if they are to be sorted
@@ -243,9 +244,11 @@ eventEC.onCollect( 'beforeDelayedPostProcess', function( cb ){
     Object.keys( listData ).forEach( function( list ){
       if( list === '_ALL_' ) return;
       var sortField = config[ list ].sortBy;
+
       Object.keys( listData[ list ] ).forEach( function( value ){
         listData[ list ] [ value ].sort( makeSorter( sortField ) );
       })
+      
     });
 
     cb( null );
@@ -336,6 +339,7 @@ function makeLists( involvedOnes, cb ){
       var filePath = c.indexFolder.replace('{{name}}', valueName );
       ryver.log("File folder", c.indexFolder, "resolved as: ", filePath );
 
+
       // Get the extension of the template file
       var templateFileExt = p.extname( templateNameAndExt );
 
@@ -388,105 +392,129 @@ function makeLists( involvedOnes, cb ){
 
           // **** WORK OUT fileName, nextFileName, prevFileName ****
 
-          ryver.log( "fileName resolved as:", fileName );
 
-          // Enrich fileData with whatever is in _info.yaml placed in
-          // the _source_ directory
-          ryver.readYamlFile( ryver.getMainInfo(), filePath, '_info.yaml', function( err, info ){
-
-            var maxPagesInPager = info.maxPagesInPager || 10;
-
-            var pager = [];
-            for( var i = 1; i <= totalPages; i++ ){
-              var thisPage = ( i == pageNumber );
-              if( i == 1 ) pagerPageName = listMainPageName;
-              else pagerPageName = listNumberPageName.replace( '{{number}}', i );
-              pager.push( { pageNumber: i, pageName: pagerPageName, thisPage: thisPage } );
-            }
-
-            // Cut the pager if necessary
-            // Comments from now on assume 10 items per page, 137 items
-            // 14 pager elements, pager.length is 14
-            // max items 10
-            //
-            // For boundary test:
-
-            // pager.length = 13
-            // First index of array: 0
-            // last index of array: 12
-            // maxPagesInPager = 10
-            // halfMaxPagesInPager = 5
-            //
-            // Shifting:
-            // Page 1 : delta -4, start 0 (last index: 9)
-            // Page 2 : delta -3, start 0 (last index: 9)
-            // Page 3 : delta -2, start 0 (last index: 9)
-            // Page 4 : delta -1, start 0 (last index: 9)
-            // Page 5 : delta 0,  start 0 (last index: 9)
-
-            // Page 6 : delta 1,  start 1 (last index: 10)
-            // Page 7 : delta 2,  start 2 (last index: 11)
-            // Page 8 : delta 3,  start 3 (last index: 12)
-
-            // Page 9 : delta 4,  start 3 (last index: 12)
-            // Page 10: delta 5,  start 3 (last index: 12)
-
-            // Set basic starting variables
-            var halfMaxPagesInPager = Math.floor( maxPagesInPager / 2 );
-            var start = 0, length = pager.length;
-
-            // If there are more pages than the length of the pager...
-            if( length > maxPagesInPager ){
-
-              // If it's over the half-length of the pager, shift the pager's
-              // `start` rightwards. Unless it would go "too" rightwards,
-              // in which case it will be at the right edge
-              var delta = pageNumber - halfMaxPagesInPager;
-              if( delta >= 1 ){
-                if( delta + maxPagesInPager <= lengh )
-                  start = delta;
-                else
-                  start = length - maxPagesInPager;
-              }
-            }
-
-            // Only take the part of the array that is to be displayed
-            pager = pager.splice( start, maxPagesInPager );
-
-            var pagerData = {
-              prevPageName: prevFileName,
-              pageName: fileName,
-              nextPageName: nextFileName,
-
-              pageNumber: pageNumber,
-              totalElemens: totalElements,
-              totalPages: totalPages,
-              elementsPerPage: elementsPerPage,
-              elementsInThisPage: inPage,
-              listName: valueName,
-              pager: pager,
-            };
-
-            info.pagerData = pagerData;
-            ryver.makeFileData( false, filePath, fileName + templateFileExt, listTemplateAsBuffer, info, true, function( err, fileData ){
-              if( err ) return cb( err );
-
-              ryver.vlog("Made fileData with:", filePath, fileName, templateFileExt, info );
-
-              ryver.vlog("Resulting fileData:" );
-              ryver.vlog( function(){
-                ryver.vlog( ryver.trimFileData( fileData ) );
-              });
-
-              ryver.filter( fileData, function( err ){
-                if( err ) return cb( err );
-
-                // Increment the page number
-                pageNumber++;
-                cb( null );
-              });
-            });
+          // Make up the info object, which is based in _info.yaml files
+          // loaded recursively till reaching the generated file's path.
+          var infoPathSegments = filePath.split('/');
+          var infoPaths = [];
+          var partial = '';
+          var info = {};
+          infoPathSegments.forEach( function( tip ){
+            partial = p.join( partial, tip );
+            infoPaths.push( partial );
           });
+
+          async.eachSeries(
+            infoPaths,
+            function( path, cb ){
+              ryver.readYamlFile( info, path, '_info.yaml', function( err, newInfo ){
+               if( err ) return cb( err );
+
+               // Info actually gets overwritten straight away, we are only interested in the
+               // end result
+               info = newInfo; 
+
+               cb( null );
+              });
+            },
+            function( err ){
+              
+              var maxPagesInPager = info.maxPagesInPager || 10;
+  
+              var pager = [];
+              for( var i = 1; i <= totalPages; i++ ){
+                var thisPage = ( i == pageNumber );
+                if( i == 1 ) pagerPageName = listMainPageName;
+                else pagerPageName = listNumberPageName.replace( '{{number}}', i );
+                pager.push( { pageNumber: i, pageName: pagerPageName, thisPage: thisPage } );
+              }
+  
+              // Cut the pager if necessary
+              // Comments from now on assume 10 items per page, 137 items
+              // 14 pager elements, pager.length is 14
+              // max items 10
+              //
+              // For boundary test:
+  
+              // pager.length = 13
+              // First index of array: 0
+              // last index of array: 12
+              // maxPagesInPager = 10
+              // halfMaxPagesInPager = 5
+              //
+              // Shifting:
+              // Page 1 : delta -4, start 0 (last index: 9)
+              // Page 2 : delta -3, start 0 (last index: 9)
+              // Page 3 : delta -2, start 0 (last index: 9)
+              // Page 4 : delta -1, start 0 (last index: 9)
+              // Page 5 : delta 0,  start 0 (last index: 9)
+  
+              // Page 6 : delta 1,  start 1 (last index: 10)
+              // Page 7 : delta 2,  start 2 (last index: 11)
+              // Page 8 : delta 3,  start 3 (last index: 12)
+  
+              // Page 9 : delta 4,  start 3 (last index: 12)
+              // Page 10: delta 5,  start 3 (last index: 12)
+  
+              // Set basic starting variables
+              var halfMaxPagesInPager = Math.floor( maxPagesInPager / 2 );
+              var start = 0, length = pager.length;
+  
+              // If there are more pages than the length of the pager...
+              if( length > maxPagesInPager ){
+  
+                // If it's over the half-length of the pager, shift the pager's
+                // `start` rightwards. Unless it would go "too" rightwards,
+                // in which case it will be at the right edge
+                var delta = pageNumber - halfMaxPagesInPager;
+                if( delta >= 1 ){
+                  if( delta + maxPagesInPager <= length )
+                    start = delta;
+                  else
+                    start = length - maxPagesInPager;
+                }
+              }
+  
+              // Only take the part of the array that is to be displayed
+              pager = pager.splice( start, maxPagesInPager );
+  
+              var pagerData = {
+                prevPageName: prevFileName,
+                pageName: fileName,
+                nextPageName: nextFileName,
+  
+                pageNumber: pageNumber,
+                totalElemens: totalElements,
+                totalPages: totalPages,
+                elementsPerPage: elementsPerPage,
+                elementsInThisPage: inPage,
+                listName: valueName,
+                pager: pager,
+              };
+  
+              info.pagerData = pagerData;
+              ryver.makeFileData( false, filePath, fileName + templateFileExt, listTemplateAsBuffer, info, true, function( err, fileData ){
+                if( err ) return cb( err );
+  
+                ryver.vlog("Made fileData with:", filePath, fileName, templateFileExt, info );
+  
+                ryver.vlog("Resulting fileData:" );
+                ryver.vlog( function(){
+                  ryver.vlog( ryver.trimFileData( fileData ) );
+                });
+  
+                ryver.filter( fileData, function( err ){
+                  if( err ) return cb( err );
+  
+                  // Increment the page number
+                  pageNumber++;
+                  cb( null );
+                });
+              });
+ 
+            }
+          );
+
         },
         function( err ){
           if( err ) return cb( err );
