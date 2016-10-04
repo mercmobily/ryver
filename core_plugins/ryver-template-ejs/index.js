@@ -10,16 +10,26 @@ function makeHash(){
   return crypto.createHash('md5').update( (Math.random()*1000000).toString() ).digest('hex');
 }
 
-eventEC.onCollect( 'beforePreProcessFilters', function( cb ){
+eventEC.onCollect( 'afterPreProcessFilters', function( cb ){
 
   var f = function( fileData, cb ){
+
 
     var hashTable = fileData.system.ejsHashTable = {};
 
     // This filter will only work on text files (of any kind)
+    // and ONLY IF EJS IS IN THE PIPELINE!
     if( fileData.system.mimetype.split('/')[0] !== 'text'){
+
       ryver.log( "File ignored as mime type is not 'text'" );
       return cb( null, fileData);
+
+    } else {
+
+      if(  !fileData.info.filtersPipeline ||  !fileData.info.filtersPipeline.find( function( i ) { return i.name == 'template-ejs'} ) ){
+        ryver.log( "File ignored as file won't be processed by EJS later" );
+        return cb( null, fileData);
+      }
     }
 
     var found = false;
@@ -56,6 +66,7 @@ eventEC.onCollect( 'filter', function( cb ){
       return cb( null, fileData);
     }
 
+
     // The hash table from the system
     var hashTable = fileData.system.ejsHashTable;
 
@@ -75,8 +86,13 @@ eventEC.onCollect( 'filter', function( cb ){
 
     // TODO: Take this out
     fileData.info.inspect = require('util').inspect;
+
+    // Work out (and pass) `filename` so that the include directive works
+    var s = fileData.system;
+    var filename = p.join( s.filePath, s.fileName + s.fileExt );
+ 
     ryver.vlog("Contents before running EJS filter, with EJS tags restored:", fileData.contents );
-    fileData.contents = ejs.render( fileData.contents, fileData, {} );
+    fileData.contents = ejs.render( fileData.contents, fileData, { filename: './_SITE/dummy.html'} );
     ryver.vlog("Contents after running EJS filter:", fileData.contents );
 
     cb( null );
