@@ -98,7 +98,22 @@ var addHooksToList = function( list, hookName, front ){
     log("Hooks registered for ", hookName,":", hooks.length );
   }
 
-  hooks.forEach( function( hook ){
+  
+  // If 'front' is set, then hooks will be added by cycling them and
+  // 'unshifting' the `hooks` variable, which will by definition reverse
+  // the order in which the callbacks are added. This could potentially
+  // have side effects on modules that want callbacks to be run in a 
+  // specific order (e.g. ryver-lister, which wants to create/sort the list,
+  // and THEN make up a (ordered) short list for a specific page.
+  // So, if `front` is defined, the list of hooks is reversed and then unshifted.
+  var newHooks;
+  if( front ) {
+    newHooks = hooks.concat().reverse();
+  } else {
+    newHooks = hooks;
+  }
+
+  newHooks.forEach( function( hook ){
     if( front ){
       log( "Adding function to the top of the list" );
       list.unshift( { type: 'hook', name: hook.name, func: hook.executor, hookName: hookName } );
@@ -520,6 +535,7 @@ var collectFiltersAndHooks = exports.collectFiltersAndHooks = function( cb ){
       },
       function( err ){
         if( err ) return cb( err );
+
         cb( null );
       }
     );
@@ -594,8 +610,9 @@ var filter = exports.filter = function( fileData, cb){
             if( ! fileData.system.inDelayedPostProcess ){
               log("Postprocessing should be delayed, stopping here (for now)");
 
-              // Adding extra hooks to the process pipeline
+              // Adding extra hooks to the process pipelinee
               addHooksToList( list, 'beforeDelayedPostProcess', true );
+             
               addHooksToList( list, 'afterDelayedPostProcess' );
 
               // Adding file to the list of files that will need to be
