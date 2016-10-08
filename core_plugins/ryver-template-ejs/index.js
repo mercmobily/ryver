@@ -89,7 +89,8 @@ eventEC.onCollect( 'filter', function( cb ){
 
     // Work out (and pass) `filename` so that the include directive works
     var s = fileData.system;
-    var filename = p.join( ryver.getSrc(), s.filePath, s.fileName + s.fileExt );
+    //var filename = p.join( ryver.getSrc(), s.filePath, s.fileName + s.fileExt );
+    var filename = p.join( ryver.getSrc(), '_includes', s.fileName + s.fileExt );
  
     ryver.vlog("Contents before running EJS filter, with EJS tags restored:", fileData.contents );
     fileData.contents = ejs.render( fileData.contents, fileData, { filename: filename} );
