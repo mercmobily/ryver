@@ -1,6 +1,7 @@
 
 var async = require('async');
 var fs = require('fs-extra')
+var nodeFs = require('fs')
 var p = require('path')
 var EventEmitterCollector = require("eventemittercollector");
 var mmm = require('mmmagic');
@@ -194,6 +195,7 @@ var setConfig = exports.setConfig = function( config ){
 
   config.ignoreHash = {};
   config.copyHash = {};
+  config.smartCopyHash = {};
   config.asFile = {};
   config.linkAsFileHash = {};
   config.linkAsDirectoryHash = {};
@@ -209,6 +211,14 @@ var setConfig = exports.setConfig = function( config ){
       config.copyHash[ deleteTrailingSlash( copy ) ] = true;
     });
   }
+
+  // #DOCUMENT
+  if( Array.isArray( config.smartCopy ) ){
+    config.smartCopy.forEach( function( smartCopy ){
+      config.smartCopyHash[ deleteTrailingSlash( smartCopy ) ] = true;
+    });
+  }
+
 
   if( Array.isArray( config.linkAsFile ) ){
     config.linkAsFile.forEach( function( linkAsFile ){
@@ -605,7 +615,7 @@ var filter = exports.filter = function( fileData, cb){
         // system.delayPostProcess is true AND system.inDelayedPostProcess if false,
         // then it's time to quit -- even before getting the element out
         if( list[ 0 ].type == 'hook' && list[ 0 ].hookName == 'beforePostProcessFilters' ){
-          if( fileData.system.delayPostProcess ){
+          if( fileData.system.delayPostProcess || fileData.info.delayPostProcess ){
 
             if( ! fileData.system.inDelayedPostProcess ){
               log("Postprocessing should be delayed, stopping here (for now)");
@@ -855,12 +865,16 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
   log( "filePath (relative to getSrc():", filePath );
 
 
+  console.log("Processing:", absFilePath );
+
   // Check if it needs to be ignored or copied (check if config file says so)
   // #DOCUMENT
   if( processing.config.ignoreHash[ filePath ] ){
     log( "File is to be ignored, ignoring" );
     return cb( null );
   }
+
+
 
   // Check if it needs to be ignored or copied (check if config file says so)
   // #DOCUMENT
@@ -985,30 +999,72 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
                 log( "filePath: ", filePath );
                 log( "getSrc() is: ", getSrc() );
 
-                makeFileData( p.join( filePath, fileNameAndExt ), filePath, fileNameAndExt, null, info, false, function( err, fileData ){
-                  if( err ) return cb( err );
+                // DETOUR: Check if its extension is in smartCopyHash,
+                // and if it is, skip it)
+                var ext = p.extname( fileNameAndExt );
+                if( processing.config.smartCopyHash[ ext ] ){
+                  // TODO: check file size, if size the same, do not copy
+                  log( "File matches smartCopy extensione", filePath, fileNameAndExt );
+                 
+                  var $s =  p.join( getSrc(), filePath, fileNameAndExt );
+                  var $d =  p.join( getDst(), filePath, fileNameAndExt );
 
-                  // Add the file itself to the list of origins since it IS a file on the file system
-                  //fileData.system.originDependencies.push( p.join( filePath, fileNameAndExt ) );
-
-                  log( "Basic fileData created" );
-                  vlog( function(){
-                    vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
-                  });
-
-                  log( "The file's mime type is ", fileData.system.mimetype );
-
-                  filter( fileData, function( err ){
+                  fs.stat( $s, function( err, $ss ){
                     if( err ) return cb( err );
 
+                    fs.stat( $d, function( err, $ds) {
+                      if( err ) return cb( err );
+                                         
+                      log( "Comparing size of", $s, $d, $ss.size, $ds.size );
+                      if( $ss.size == $ds.size ){
+                        log("Same sizes! Skipping copying over...");
+                        return cb( null );
+                      } else {
+                        log("Different sizes! Copying over...");
+                        
+                        fs.mkdirp( p.join( getDst(), filePath ), function( err ){
+                          if( err ) return cb( err );
+      
+                          fs.copy( $s, $d, { clobber: true, preserveTimestamps: true }, function( err ){
+                            if( err ) return cb( err );
+
+                            cb( null );
+                          
+                          });
+                        });
+
+                      }
+                    });
+                    
+                  });
+
+                } else {
+
+                  makeFileData( p.join( filePath, fileNameAndExt ), filePath, fileNameAndExt, null, info, false, function( err, fileData ){
+                    if( err ) return cb( err );
+
+                    // Add the file itself to the list of origins since it IS a file on the file system
+                    //fileData.system.originDependencies.push( p.join( filePath, fileNameAndExt ) );
+
+                    log( "Basic fileData created" );
                     vlog( function(){
-                      vlog( "fileData after filtering: ", trimFileData( fileData ) );
+                      vlog( "Initial fileData before any filtering: ", trimFileData( fileData ) );
                     });
 
+                    log( "The file's mime type is ", fileData.system.mimetype );
 
-                    cb( null );
+                    filter( fileData, function( err ){
+                      if( err ) return cb( err );
+
+                      vlog( function(){
+                        vlog( "fileData after filtering: ", trimFileData( fileData ) );
+                      });
+
+
+                      cb( null );
+                    })
                   })
-                })
+                }
               }
             })
           },
