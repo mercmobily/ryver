@@ -5,7 +5,7 @@ var async = require('async');
 
 var eventEC = ryver.eventEC;
 
-var listData = {};
+var listData = exports.listData = {};
 var DO = require( 'deepobject');
 
 var skipMe = false;
@@ -158,7 +158,6 @@ eventEC.onCollect( 'afterFilters', function( cb ){
     // If module is to be skipped, skip
     if( skipMe ) return cb( null );
 
-
     // If it has makeListLatestVars, it will force the file to fileData.info.delayPostProcess
     if( fileData.info.makeListLatestVars ){
       fileData.system.delayPostProcess = true;
@@ -225,12 +224,18 @@ eventEC.onCollect( 'beforeDelayedPostProcess', function( cb ){
     // If module is to be skipped, skip
     if( skipMe ) return cb( null );
 
-    var makeSorter = function( sortField ){
+    var makeSorter = function( sortField, sortReversed ){
 
       return function( a, b ){
+
         if( a.info[ sortField ] === b.info[ sortField ] ) return 0;
-        if( a.info[ sortField ] <   b.info[ sortField ] ) return 1;
-        if( a.info[ sortField ] >   b.info[ sortField ] ) return -1;
+        if( sortReversed ){
+          if( a.info[ sortField ] >   b.info[ sortField ] ) return 1;
+          if( a.info[ sortField ] <   b.info[ sortField ] ) return -1;
+        } else {
+          if( a.info[ sortField ] <   b.info[ sortField ] ) return 1;
+          if( a.info[ sortField ] >   b.info[ sortField ] ) return -1;
+        }
       }
     };
 
@@ -244,9 +249,12 @@ eventEC.onCollect( 'beforeDelayedPostProcess', function( cb ){
     Object.keys( listData ).forEach( function( list ){
       if( list === '_ALL_' ) return;
       var sortField = config[ list ].sortBy;
+      // # DOCUMENT
+      var sortReversed = config[ list ].sortReversed;
 
       Object.keys( listData[ list ] ).forEach( function( value ){
-        listData[ list ] [ value ].sort( makeSorter( sortField ) );
+        listData[ list ] [ value ].sort( makeSorter( sortField, sortReversed ) );
+
       })
       
     });
