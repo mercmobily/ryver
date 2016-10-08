@@ -1010,13 +1010,13 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
                   var $d =  p.join( getDst(), filePath, fileNameAndExt );
 
                   fs.stat( $s, function( err, $ss ){
-                    if( err ) return cb( err );
+                    //if( err ) return cb( err );
 
                     fs.stat( $d, function( err, $ds) {
-                      if( err ) return cb( err );
+                      //if( err ) return cb( err );
                                          
-                      log( "Comparing size of", $s, $d, $ss.size, $ds.size );
-                      if( $ss.size == $ds.size ){
+                      log( "Comparing size of", $s, $d, ($ss && $ss.size) || '[EMPTY]', ($ds && $ds.size) || '[EMPTY]' );
+                      if( $ss && $ds && $ss.size == $ds.size ){
                         log("Same sizes! Skipping copying over...");
                         return cb( null );
                       } else {
