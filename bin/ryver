@@ -179,14 +179,14 @@ ryver.readAndSetConfig( function( err, config ){
     try {
       require( '../core_plugins/ryver-' + plugin );
     } catch( e ) {
-      //console.log("ERROR:", e );
+      console.log("ERROR:", e );
       if( e.code === 'MODULE_NOT_FOUND' ){
         require( p.join( cwd, src, '_plugins', 'ryver-' + plugin ) );
       } else throw( e );
     }
 
   });
-  if( program.watch ) var watcher = require( 'ryver-watcher' );
+  if( program.watch ) var watcher = require( '../core_plugins/ryver-watcher' );
 
   // This will enrich ryver's internal variables
   // to pre-store the full list of all available filters
