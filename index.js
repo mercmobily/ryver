@@ -99,11 +99,11 @@ var addHooksToList = function( list, hookName, front ){
     log("Hooks registered for ", hookName,":", hooks.length );
   }
 
-  
+
   // If 'front' is set, then hooks will be added by cycling them and
   // 'unshifting' the `hooks` variable, which will by definition reverse
   // the order in which the callbacks are added. This could potentially
-  // have side effects on modules that want callbacks to be run in a 
+  // have side effects on modules that want callbacks to be run in a
   // specific order (e.g. ryver-lister, which wants to create/sort the list,
   // and THEN make up a (ordered) short list for a specific page.
   // So, if `front` is defined, the list of hooks is reversed and then unshifted.
@@ -622,7 +622,7 @@ var filter = exports.filter = function( fileData, cb){
 
               // Adding extra hooks to the process pipelinee
               addHooksToList( list, 'beforeDelayedPostProcess', true );
-             
+
               addHooksToList( list, 'afterDelayedPostProcess' );
 
               // Adding file to the list of files that will need to be
@@ -1005,7 +1005,7 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
                 if( processing.config.smartCopyHash[ ext ] ){
                   // TODO: check file size, if size the same, do not copy
                   log( "File matches smartCopy extensione", filePath, fileNameAndExt );
-                 
+
                   var $s =  p.join( getSrc(), filePath, fileNameAndExt );
                   var $d =  p.join( getDst(), filePath, fileNameAndExt );
 
@@ -1014,28 +1014,28 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
 
                     fs.stat( $d, function( err, $ds) {
                       //if( err ) return cb( err );
-                                         
+
                       log( "Comparing size of", $s, $d, ($ss && $ss.size) || '[EMPTY]', ($ds && $ds.size) || '[EMPTY]' );
                       if( $ss && $ds && $ss.size == $ds.size ){
                         log("Same sizes! Skipping copying over...");
                         return cb( null );
                       } else {
                         log("Different sizes! Copying over...");
-                        
+
                         fs.mkdirp( p.join( getDst(), filePath ), function( err ){
                           if( err ) return cb( err );
-      
+
                           fs.copy( $s, $d, { clobber: true, preserveTimestamps: true }, function( err ){
                             if( err ) return cb( err );
 
                             cb( null );
-                          
+
                           });
                         });
 
                       }
                     });
-                    
+
                   });
 
                 } else {
