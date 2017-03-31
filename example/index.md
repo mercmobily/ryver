@@ -1,0 +1,5 @@
+---
+title: Welcome page
+---
+# Welcome!
+

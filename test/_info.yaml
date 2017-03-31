@@ -1,0 +1,53 @@
+# These values are used as the starting point of the whole tree.
+# Remember that you can redefine any one of them by placing another
+# _info.yaml file in a subfolder. The values in the nested _info.yaml
+# will enrich, rather than substitute.
+# So, this is a great spot for defaults.
+
+# Default values for layout and landing
+layout: page.html
+landing: ''
+
+############################################################################
+# These are ALL of the filters run when calling ryver.filter() on a file
+############################################################################
+
+# preProcessFilters should read files and enrich fileInfo
+# accordingly.
+
+#beforePreProcessFilters
+preProcessFilters:
+#afterPreProcessFilters
+
+# Filtering is grouped into three groups so that you can separate them
+# logically by type of task and only redefine specific ones in files
+#beforeFilters
+preFilters:
+filters: pager,markup-markdown
+postFilters: layout
+#afterFilters
+
+# postProcessFilters are the last filters applied.
+# Note: if a filter has set the fileInfo.system.delayPostProcess flag
+# then the filters in postProcessFilters for that file will only be
+# run when _all_ of the files had preProcessFilters, preFilters, filters and
+# postFilters already applied.
+# This is especially useful if a filter is gathering information in the previous
+# steps, and needs data from _all_ filters to function (e.g. the list of the
+# latest blog entries)
+
+#[maybe]beforeDelayedPostProcess
+#beforePostProcessFilters
+postProcessFilters: template-liquid
+#afterPostProcessFilters
+#[maybe]afterDelayedPostProcess
+
+#afterEverything
+
+# This means that the file is possibly part of a "group"
+# It's false by default -- it will be turned on by each file's frontmatter
+listed: false
+
+a: 10
+b: 20000
+complex: { a : 10, b: 30 }

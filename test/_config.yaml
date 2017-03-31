@@ -1,0 +1,32 @@
+
+# Plugins
+plugins: frontmatter,layout,pager,markup-markdown,template-liquid,filecopy,landing,lister,template-ejs
+
+# Common general directories
+includesFolder: _includes
+layoutsFolder: _layouts
+
+# pagerplugin
+pageFileName: '{{originalName}}_{{number}}'
+pageSeparator: '<!--pagebreak-->'
+
+# Lister plugin
+listTemplate: _listTemplate.md
+listMainPageName: index
+listNumberPageName: index_{{number}}
+
+# Variable to define grouping variables and placement of generated list files
+listVars:
+  tags:
+    indexFolder: tags/{{name}}
+    perPage: 5
+    sortBy: date
+  categories:
+    indexFolder: categories/{{name}}
+    perPage: 5
+    sortBy: date
+
+listAll:
+  indexFolder: articles
+  perPage: 10
+  sortBy: date

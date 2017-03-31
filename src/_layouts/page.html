@@ -1,0 +1,50 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+    "http://www.w3.org/TR/html4/strict.dtd">
+<html lang="en">
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>{{info.title}}</title>
+  </head>
+  <body>
+
+<!--contents-->
+  {% if info.pagerData %}
+
+  <!-- This loops through the paginated posts -->
+    <div class="pager">
+      <ul>
+    {% for page in info.pagerData.pager %}
+      {% if page.thisPage %}
+        <li><p class="this_page">{{page.pageNumber}}</p></li>
+      {% else %} 
+        <li><a href="{{page.pageName}}{{system.fileExt}}" class="this_page">{{page.pageNumber}}</a></li>
+      {% endif %} 
+    {% endfor %}
+      </ul>
+    </div>
+
+    <!-- Prev and Next links -->
+   <div class="pagination">
+
+     <!-- Prev link -->
+     {% if info.pagerData.prevPageName %}
+     <a href="{{ info.pagerData.prevPageName }}{{system.fileExt}}" class="previous">Previous</a>
+     {% else %}
+     <span class="previous">Previous</span>
+     {% endif %}
+
+     <!-- page number -->
+     <span class="page_number ">Page: {{ info.pagerData.pageNumber }} of {{ info.pagerData.totalPages }}</span>
+
+     <!-- Next link -->
+     {% if info.pagerData.nextPageName %}
+     <a href="{{ info.pagerData.nextPageName }}{{system.fileExt}}" class="previous">Next</a>
+      {% else %}
+      <span class="next">Next</span>
+      {% endif %}
+    </div>
+
+  {% endif %}
+  </body>
+</html>
+

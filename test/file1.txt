@@ -1,0 +1,11 @@
+---
+CAZZO: 1000
+FIGA: 20
+layout: page.html
+listed: true
+a: 10000
+---
+File 1
+[[testTag 1 2 3]] and then [[include blah.txt]] and [[testTag 4 5 6]] and that's it.
+
+This is the big test: {{ info.CAZZO }}, and again: {{ info.a }}
