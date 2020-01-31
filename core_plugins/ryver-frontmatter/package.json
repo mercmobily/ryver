@@ -3,6 +3,6 @@
   "version": "0.0.1",
   "main" : "./index.js",
   "dependencies": {
-    "js-yaml":"~3.3.1"
+    "js-yaml":"~3.13.1"
   }
 }
