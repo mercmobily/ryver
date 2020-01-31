@@ -18,7 +18,7 @@
     "chalk": "~1.1.0",
     "commander": "~2.9.0",
     "deepobject": "~0.3.5",
-    "ejs": "~2.4.1",
+    "ejs": "~3.0.1",
     "eventemittercollector": "~0.3.10",
     "finalhandler": "~0.4",
     "fs-extra": "~0.26",
