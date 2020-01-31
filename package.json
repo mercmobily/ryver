@@ -22,7 +22,7 @@
     "eventemittercollector": "~0.3.10",
     "finalhandler": "~0.4",
     "fs-extra": "~0.26",
-    "js-yaml": "~3.5.4",
+    "js-yaml": "~3.13.1",
     "mmmagic": "~0.4.1",
     "node-static": "~0.7",
     "remark": "^6.0.1",
