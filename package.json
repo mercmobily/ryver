@@ -10,7 +10,7 @@
   "private": false,
   "repository": {
     "type": "git",
-    "url": "https://github.com/mercmobily/ryver.git"
+    "url": "https://github.com/mobily-enterprises/ryver.git"
   },
   "author": "Tony Mobily",
   "dependencies": {
@@ -31,9 +31,9 @@
     "tinyliquid": "~0.2.29"
   },
   "bugs": {
-    "url": "https://github.com/mercmobily/ryver/issues"
+    "url": "https://github.com/mobily-enterprises/ryver/issues"
   },
-  "homepage": "https://github.com/mercmobily/ryver",
+  "homepage": "https://github.com/mobily-enterprises/ryver",
   "directories": {
     "test": "test"
   },
