@@ -3,6 +3,6 @@
   "version": "0.0.1",
   "main" : "./index.js",
   "dependencies": {
-    "ejs":"~2.3.3"
+    "ejs":"~3.0.1"
   }
 }
