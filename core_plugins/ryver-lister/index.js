@@ -1,12 +1,12 @@
 
-var ryver = require('ryver');
+var ryver = require('../..');
 var p = require('path');
 var async = require('async');
 
 var eventEC = ryver.eventEC;
 
 var listData = exports.listData = {};
-var DO = require( 'deepobject');
+var DO = require('../../lib/deep_object');
 
 var skipMe = false;
 

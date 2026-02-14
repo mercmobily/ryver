@@ -1,5 +1,5 @@
 
-var ryver = require('ryver');
+var ryver = require('../..');
 var ejs = require('ejs');
 var p = require('path');
 var crypto = require('crypto');

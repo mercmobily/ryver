@@ -3,14 +3,12 @@ var async = require('async');
 var fs = require('fs-extra')
 var nodeFs = require('fs')
 var p = require('path')
-var EventEmitterCollector = require("eventemittercollector");
-var mmm = require('mmmagic');
-var DO = require('deepobject');
+var EventEmitterCollector = require('./lib/event_emitter_collector');
+var isBinaryFileSync = require('isbinaryfile').isBinaryFileSync;
+var mimeTypes = require('mime-types');
+var DO = require('./lib/deep_object');
 var yaml = require('js-yaml');
 var chalk = require('chalk');
-
-var Magic = mmm.Magic;
-var magic = new Magic( mmm.MAGIC_MIME_TYPE );
 
 /* TODO:
   * [ ] Change ryver-lister so that it returns proper extra things to filter rather than "the lot"
@@ -83,6 +81,13 @@ var deleteTrailingSlash = function( src ){
     return src.substr(0, lastIndex )
   else
     return src;
+}
+
+var detectMimetype = function( fileNameAndExt, fileContentsAsBuffer ){
+  var byExtension = mimeTypes.lookup( fileNameAndExt );
+  if( byExtension ) return byExtension;
+
+  return isBinaryFileSync( fileContentsAsBuffer ) ? 'application/octet-stream' : 'text/plain';
 }
 
 var addHooksToList = function( list, hookName, front ){
@@ -744,47 +749,44 @@ var makeFileData = exports.makeFileData = function( sourceURL, filePath, fileNam
 
   function restOfFunction(){
 
-    magic.detect( fileContentsAsBuffer, function( err, magic ){
-      if( err ) return cb( err );
+    var detectedMimetype = detectMimetype( fileNameAndExt, fileContentsAsBuffer );
+    var fileExt = p.extname( fileNameAndExt );
+    var fileName = p.basename( fileNameAndExt, fileExt );
 
-      var fileExt = p.extname( fileNameAndExt );
-      var fileName = p.basename( fileNameAndExt, fileExt );
+    log("fileNameAndExt is", fileNameAndExt, "and as a result fileName is ", fileName, "and fileExt is:", fileExt );
 
-      log("fileNameAndExt is", fileNameAndExt, "and as a result fileName is ", fileName, "and fileExt is:", fileExt );
+    //console.log("\n\n\nINFO IS: ", require('util').inspect(info, {showHidden: false, depth: null}));
+    // Sets the basic file info
+    var fileData = {
+      system: {
+        filePath: filePath,
+        fileName: fileName,
+        fileExt: fileExt,
+        fileContentsAsBuffer: fileContentsAsBuffer,
 
-      //console.log("\n\n\nINFO IS: ", require('util').inspect(info, {showHidden: false, depth: null}));
-      // Sets the basic file info
-      var fileData = {
-        system: {
-          filePath: filePath,
-          fileName: fileName,
-          fileExt: fileExt,
-          fileContentsAsBuffer: fileContentsAsBuffer,
+        mimetype: detectedMimetype,
+        processedBy: [],
+        originDependencies: [],
+        originMasterFileURL: sourceURL ?  sourceURL : null,
+      },
+      initialInfo: skipCloning ? info : cloneObject( info ),
+      info: skipCloning ? info : cloneObject( info ),
+      initialContents: fileContentsAsBuffer,
+      contents: fileContentsAsBuffer,
+    };
 
-          mimetype: magic,
-          processedBy: [],
-          originDependencies: [],
-          originMasterFileURL: sourceURL ?  sourceURL : null,
-        },
-        initialInfo: skipCloning ? info : cloneObject( info ),
-        info: skipCloning ? info : cloneObject( info ),
-        initialContents: fileContentsAsBuffer,
-        contents: fileContentsAsBuffer,
-      };
+    // Convert to string if it's text-based mime type
+    // This will leave binary data (images, etc.) intact
+    if( fileData.system.mimetype.split('/')[0] === 'text')
+      fileData.contents = fileData.contents.toString('utf-8');
 
-      // Convert to string if it's text-based mime type
-      // This will leave binary data (images, etc.) intact
-      if( fileData.system.mimetype.split('/')[0] === 'text')
-        fileData.contents = fileData.contents.toString('utf-8');
-
-      // Add all of the info files to originDependencies
-      yamlURLsFromPath( fileData.system.filePath ).forEach( function( URL ){
-        fileData.system.originDependencies.push( URL );
-      });
-
-
-      cb( null, fileData );
+    // Add all of the info files to originDependencies
+    yamlURLsFromPath( fileData.system.filePath ).forEach( function( URL ){
+      fileData.system.originDependencies.push( URL );
     });
+
+
+    cb( null, fileData );
   }
 }
 
@@ -802,7 +804,7 @@ var readYamlFile = exports.readYamlFile = function( baseObject, filePath, fileNa
     }
 
     try {
-      var yamlData = yaml.safeLoad( yamlFileAsBuffer, { filename:  p.join( filePath, fileNameAndExt ) } );
+      var yamlData = yaml.load( yamlFileAsBuffer.toString('utf-8'), { filename:  p.join( filePath, fileNameAndExt ) } );
     } catch( err ) {
       return cb( err );
     }
@@ -884,7 +886,7 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
     fs.mkdirp( p.join( getDst(), filePath), function( err ){
       if( err ) return cb( null );
 
-      fs.copy(  p.join( absFilePath ), p.join( getDst(), filePath  ), { clobber: true, preserveTimestamps: true }, function( err ){
+      fs.copy(  p.join( absFilePath ), p.join( getDst(), filePath  ), { overwrite: true, preserveTimestamps: true }, function( err ){
         if( err ) return cb( err );
         return cb( null );
       });
@@ -1025,7 +1027,7 @@ var build = exports.build = function( absFilePath, passedInfo, cb ){
                         fs.mkdirp( p.join( getDst(), filePath ), function( err ){
                           if( err ) return cb( err );
 
-                          fs.copy( $s, $d, { clobber: true, preserveTimestamps: true }, function( err ){
+                          fs.copy( $s, $d, { overwrite: true, preserveTimestamps: true }, function( err ){
                             if( err ) return cb( err );
 
                             cb( null );

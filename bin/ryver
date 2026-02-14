@@ -7,13 +7,9 @@
 var ryver = require('..');
 var program = require('commander');
 var chalk = require('chalk');
-var yaml = require('js-yaml');
-var async = require('async');
 
 var fs = require('fs');
 var p = require('path');
-
-var static = require('node-static');
 
 exports.ryver = ryver;
 

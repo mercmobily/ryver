@@ -1,5 +1,5 @@
 
-var ryver = require('ryver');
+var ryver = require('../..');
 var liquid = require('tinyliquid');
 var p = require('path');
 

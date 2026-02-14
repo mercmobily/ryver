@@ -1,5 +1,5 @@
 
-var ryver = require('ryver');
+var ryver = require('../..');
 var p = require('path');
 var fs = require('fs-extra');
 var eventEC = ryver.eventEC;

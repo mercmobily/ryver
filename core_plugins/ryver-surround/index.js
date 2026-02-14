@@ -1,5 +1,5 @@
 
-var ryver = require('ryver');
+var ryver = require('../..');
 //var markdown = require('markdown').markdown;
 
 var eventEC = ryver.eventEC;

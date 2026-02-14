@@ -1,11 +1,9 @@
 
-var ryver = require('ryver');
+var ryver = require('../..');
 var p = require('path');
 var async = require('async');
 
 var eventEC = ryver.eventEC;
-
-var DO = require( 'deepobject');
 
 // pager -- split a file into slices, providing a pagerData variable
 //          so that pages can render the pages

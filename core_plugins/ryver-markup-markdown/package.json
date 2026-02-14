@@ -3,7 +3,6 @@
   "version": "0.0.1",
   "main" : "./index.js",
   "dependencies": {
-    "marked":"~0.3.3"
+    "markdown-it":"^14.1.0"
  }
 }
-

@@ -1,14 +1,11 @@
 
-var ryver = require('ryver');
-//var marked = require('marked');
-//var MarkdownIt = require('markdown-it');
-var remark = require('remark');
-var html = require('remark-html');
+var ryver = require('../..');
+var MarkdownIt = require('markdown-it');
 var eventEC = ryver.eventEC;
 
-// https://github.com/jonschlinkert/remarkable/issues/238
-// https://github.com/wooorm/remark/issues/210
-// https://github.com/markdown-it/markdown-it/issues/292
+var markdownParser = new MarkdownIt({
+  html: false,
+});
 
 eventEC.onCollect( 'filter', function( cb ){
 
@@ -28,36 +25,7 @@ eventEC.onCollect( 'filter', function( cb ){
     //console.log("BEFORE THE CURE:");
     //console.log( fileData.contents );
 
-    /*
-    // MARKED
-    marked.setOptions({
-      //renderer: new marked.Renderer(),
-      gfm: true,
-      tables: true,
-      breaks: false,
-      pedantic: false,
-      sanitize: false,
-      smartLists: true,
-      smartypants: true
-    });
-    fileData.contents = marked( fileData.contents );
-    */
-
-    /*
-    // MARKDOWN
-    fileData.contents = markdown.toHTML( fileData.contents );
-    */
-
-    /*
-    // MARKDOWNIT
-    md = new MarkdownIt({
-      html: true
-    });
-    fileData.contents = md.render( fileData.contents );
-    */
-
-    // REMARK
-    fileData.contents = remark().use(html).process( fileData.contents );
+    fileData.contents = markdownParser.render( fileData.contents );
 
     //console.log("AFTER THE CURE:");
     //console.log( fileData.contents );

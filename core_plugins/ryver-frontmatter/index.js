@@ -1,5 +1,5 @@
 
-var ryver = require('ryver');
+var ryver = require('../..');
 var yaml = require('js-yaml');
 
 var p = require('path');
@@ -16,12 +16,12 @@ eventEC.onCollect( 'beforePreProcessFilters', function( cb ){
       return cb( null, fileData);
     }
 
-    // Wrapping both replace() and yaml.safeLoad in try/catch so that
+    // Wrapping both replace() and yaml.load in try/catch so that
     // if anything goes wrong the callback gets called correctly
     try {
       fileData.contents = fileData.contents.replace(/^---[\r\n]+([\s\S]*)[\r\n]+---[\r\n]+/m, function( match, p1, offset, string) {
 
-        frontMatter = yaml.safeLoad( p1, { filename: p.join( fileData.system.fileName, fileData.system.filePath) } );
+        var frontMatter = yaml.load( p1, { filename: p.join( fileData.system.fileName, fileData.system.filePath) } );
         ryver.enrichObject( fileData.info, frontMatter );
 
         // This will ensure that frontMatter will disappear, as it should
